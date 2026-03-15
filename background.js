@@ -439,11 +439,11 @@ async function materializeState(state) {
     };
 
     const normalizedState = normalizeWindowStateForCreate(win.state);
-    if (normalizedState) {
-      createData.state = normalizedState;
-    }
+    const shouldUseState = normalizedState && normalizedState !== 'normal';
 
-    if (!createData.state || createData.state === 'normal') {
+    if (shouldUseState) {
+      createData.state = normalizedState;
+    } else {
       const left = nullableNumber(win.left);
       const top = nullableNumber(win.top);
       const width = nullableNumber(win.width);
