@@ -1,58 +1,113 @@
-const summary = document.getElementById('summary');
-const restoreLatestButton = document.getElementById('restore-latest');
-const checkpointButton = document.getElementById('capture-checkpoint');
-const optionsButton = document.getElementById('open-options');
+const statusEl = document.getElementById('status');
+const previewListEl = document.getElementById('previewList');
+const snapshotTimeEl = document.getElementById('snapshotTime');
+const windowCountEl = document.getElementById('windowCount');
+const tabCountEl = document.getElementById('tabCount');
 
-async function refresh() {
-  const status = await chrome.runtime.sendMessage({ type: 'getStatus' });
-  const latest = status?.latestCheckpoint;
-  const live = status?.liveState;
+const refreshBtn = document.getElementById('refreshBtn');
+const openPreviewBtn = document.getElementById('openPreviewBtn');
+const openOptionsBtn = document.getElementById('openOptionsBtn');
 
-  if (!latest) {
-    summary.textContent = `当前还没有检查点；实时状态约 ${live?.windowCount || 0} 个窗口、${live?.tabCount || 0} 个页签，已记录 ${status?.eventCount || 0} 条增量日志。`;
-    return;
+refreshBtn.addEventListener('click', () => loadPreview());
+openPreviewBtn.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('preview.html') }));
+openOptionsBtn.addEventListener('click', async () => {
+  if (chrome.runtime.openOptionsPage) {
+    await chrome.runtime.openOptionsPage();
   }
+});
 
-  const time = new Date(latest.createdAt).toLocaleString();
-  summary.textContent = `最近检查点：${time}，${latest.windowCount} 个窗口，${latest.tabCount} 个页签；实时状态约 ${live?.windowCount || 0} 个窗口、${live?.tabCount || 0} 个页签；累计 ${status?.eventCount || 0} 条日志。`;
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
-restoreLatestButton.addEventListener('click', async () => {
-  restoreLatestButton.disabled = true;
-  restoreLatestButton.textContent = '恢复中…';
-  try {
-    const result = await chrome.runtime.sendMessage({ type: 'restoreLatestState' });
-    if (!result?.ok) {
-      throw new Error(result?.error || '恢复最新状态失败');
-    }
-    await refresh();
-  } catch (error) {
-    summary.textContent = `恢复失败：${error.message}`;
-  } finally {
-    restoreLatestButton.disabled = false;
-    restoreLatestButton.textContent = '恢复最新状态';
+function formatTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
+
+function renderFavicon(tab) {
+  const url = tab.favIconUrl ? escapeHtml(tab.favIconUrl) : '';
+  if (url) {
+    return `<img class="icon" src="${url}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=\\'icon fallback-icon\\'>🌐</span>'">`;
   }
-});
+  return '<span class="icon fallback-icon">🌐</span>';
+}
 
-checkpointButton.addEventListener('click', async () => {
-  checkpointButton.disabled = true;
-  checkpointButton.textContent = '保存中…';
-  try {
-    const result = await chrome.runtime.sendMessage({ type: 'captureCheckpoint' });
-    if (!result?.ok) {
-      throw new Error(result?.error || '保存检查点失败');
-    }
-    await refresh();
-  } catch (error) {
-    summary.textContent = `保存失败：${error.message}`;
-  } finally {
-    checkpointButton.disabled = false;
-    checkpointButton.textContent = '保存检查点';
+function renderBadges(tab) {
+  const badges = [];
+  if (tab.active) badges.push('<span class="badge">当前激活</span>');
+  if (tab.pinned) badges.push('<span class="badge">已固定</span>');
+  return badges.join('');
+}
+
+function renderWindow(win, index) {
+  const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
+  return `
+    <section class="window">
+      <div class="window-head">
+        <div class="window-title">窗口 ${index + 1}</div>
+        <div class="window-sub">${tabs.length} 个页签</div>
+      </div>
+      ${tabs.map((tab) => `
+        <div class="tab">
+          ${renderFavicon(tab)}
+          <div>
+            <div class="title">${escapeHtml(tab.title || tab.url || '未命名标签页')}</div>
+            <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
+            <div class="badges">${renderBadges(tab)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </section>
+  `;
+}
+
+function setSummary(checkpoint, windows) {
+  const tabCount = windows.reduce((sum, win) => sum + ((win.tabs || []).length), 0);
+  snapshotTimeEl.textContent = formatTime(checkpoint?.createdAt);
+  windowCountEl.textContent = String(windows.length);
+  tabCountEl.textContent = String(tabCount);
+}
+
+function showStatus(text) {
+  statusEl.textContent = text;
+  statusEl.classList.remove('hidden');
+  previewListEl.classList.add('hidden');
+}
+
+function showPreview(checkpoint, windows) {
+  setSummary(checkpoint, windows);
+  if (!checkpoint || windows.length === 0) {
+    showStatus('还没有可预览的快照。先让插件记录一次浏览器状态。');
+    return;
   }
-});
+  previewListEl.innerHTML = windows.map(renderWindow).join('');
+  previewListEl.classList.remove('hidden');
+  statusEl.classList.add('hidden');
+}
 
-optionsButton.addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
-});
+async function loadPreview() {
+  showStatus('正在加载预览…');
+  try {
+    const preview = await chrome.runtime.sendMessage({ type: 'get-latest-preview' });
+    if (!preview || preview.error) {
+      showStatus(preview?.error || '读取预览失败');
+      return;
+    }
+    const checkpoint = preview.checkpoint || null;
+    const windows = Array.isArray(preview.windows) ? preview.windows : [];
+    showPreview(checkpoint, windows);
+  } catch (error) {
+    showStatus(error?.message || String(error));
+  }
+}
 
-void refresh();
+loadPreview();

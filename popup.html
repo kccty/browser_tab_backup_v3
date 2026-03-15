@@ -1,21 +1,49 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edge Session Recovery</title>
-    <link rel="stylesheet" href="popup.css" />
-  </head>
-  <body>
-    <main class="app">
-      <h1>会话恢复</h1>
-      <p id="summary">正在读取状态…</p>
-      <div class="actions actions-stack">
-        <button id="restore-latest">恢复最新状态</button>
-        <button id="capture-checkpoint">保存检查点</button>
-        <button id="open-options">恢复管理</button>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edge History Recovery</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="popup">
+    <header class="hero">
+      <div>
+        <h1>Edge History Recovery</h1>
+        <p class="muted">预览最近一次快照将恢复哪些窗口和页签</p>
       </div>
-    </main>
-    <script type="module" src="popup.js"></script>
-  </body>
+      <div class="hero-actions">
+        <button id="refreshBtn" class="secondary">刷新</button>
+        <button id="openPreviewBtn" class="secondary">单独页面</button>
+      </div>
+    </header>
+
+    <section class="summary">
+      <div class="summary-card">
+        <span class="summary-label">快照</span>
+        <strong id="snapshotTime">—</strong>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">窗口</span>
+        <strong id="windowCount">0</strong>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">页签</span>
+        <strong id="tabCount">0</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div id="status" class="status">正在加载预览…</div>
+      <div id="previewList" class="preview-list hidden"></div>
+    </section>
+
+    <footer class="footer-actions">
+      <button id="openOptionsBtn" class="secondary">设置</button>
+    </footer>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
 </html>

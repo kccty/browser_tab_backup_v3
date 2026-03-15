@@ -13,6 +13,7 @@ let flushInFlight = null;
 let lifecycleReady = false;
 let stateCache = null;
 let bootstrapStatePromise = null;
+let restoreInProgress = false;
 
 bootstrap().catch((error) => console.error('[bootstrap]', error));
 
@@ -135,11 +136,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'get-latest-preview') {
+    void getLatestPreview()
+      .then((preview) => sendResponse(preview))
+      .catch((error) => sendResponse({ error: error.message }));
+    return true;
+  }
+
   return false;
 });
 
 async function onMutatingEvent(type, payload, { immediate = false } = {}) {
   await bootstrap();
+
+  if (restoreInProgress && type !== 'restore-checkpoint' && type !== 'restore-latest-state') {
+    return;
+  }
+
   const event = {
     id: crypto.randomUUID(),
     type,
@@ -241,6 +254,47 @@ async function trimCheckpoints(checkpointStore, maxCheckpoints) {
   }
 }
 
+function clonePreviewTab(tab = {}) {
+  return {
+    index: typeof tab.index === 'number' ? tab.index : 0,
+    title: tab.title || tab.pendingUrl || tab.url || '未命名标签页',
+    url: tab.url || tab.pendingUrl || '',
+    pendingUrl: tab.pendingUrl || '',
+    favIconUrl: tab.favIconUrl || '',
+    active: Boolean(tab.active),
+    pinned: Boolean(tab.pinned),
+    groupId: typeof tab.groupId === 'number' ? tab.groupId : -1
+  };
+}
+
+function buildCheckpointPreview(checkpoint) {
+  if (!checkpoint || !Array.isArray(checkpoint.windows)) {
+    return { checkpoint: checkpoint || null, windows: [] };
+  }
+
+  return {
+    checkpoint,
+    windows: checkpoint.windows.map((win = {}) => ({
+      id: win.id ?? null,
+      type: win.type || 'normal',
+      state: win.state || 'normal',
+      focused: Boolean(win.focused),
+      tabs: Array.isArray(win.tabs) ? win.tabs.map(clonePreviewTab) : []
+    }))
+  };
+}
+
+async function getLatestPreview() {
+  const checkpoints = await listCheckpoints();
+  const latest = checkpoints[0] || null;
+  if (!latest?.id) {
+    return buildCheckpointPreview(null);
+  }
+
+  const checkpoint = await getCheckpointById(latest.id);
+  return buildCheckpointPreview(checkpoint);
+}
+
 async function getStatus() {
   await bootstrap();
   await flushEvents();
@@ -264,17 +318,32 @@ async function countEvents() {
 async function listCheckpoints() {
   const db = await ensureDb();
   const items = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(CHECKPOINT_STORE)));
-  return items.sort((a, b) => b.createdAt - a.createdAt).map(summarizeCheckpoint);
+  return items
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((item) => summarizeCheckpoint(item, { includeState: false }));
 }
 
-function summarizeCheckpoint(item) {
-  return {
+async function getCheckpointById(checkpointId) {
+  const db = await ensureDb();
+  return withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
+}
+
+function summarizeCheckpoint(item, { includeState = false } = {}) {
+  if (!item) return null;
+
+  const summary = {
     id: item.id,
     reason: item.reason,
     createdAt: item.createdAt,
-    windowCount: item.state.windowCount,
-    tabCount: item.state.tabCount
+    windowCount: item.state?.windowCount || 0,
+    tabCount: item.state?.tabCount || 0
   };
+
+  if (includeState) {
+    summary.state = cloneState(item.state);
+  }
+
+  return summary;
 }
 
 function summarizeState(state) {
@@ -292,9 +361,20 @@ async function restoreCheckpoint(checkpointId) {
   const checkpoint = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
   if (!checkpoint) throw new Error('Checkpoint not found');
 
-  const restoredWindowIds = await materializeState(checkpoint.state);
-  await onMutatingEvent('restore-checkpoint', { checkpointId, restoredWindowIds }, { immediate: true });
-  return { restoredWindowIds, restoredFrom: checkpointId, mode: 'checkpoint' };
+  restoreInProgress = true;
+  try {
+    const restoredWindowIds = await materializeState(checkpoint.state);
+    await rebuildStateCacheFromBrowser();
+    await onMutatingEvent('restore-checkpoint', { checkpointId, restoredWindowIds }, { immediate: true });
+    return {
+      restoredWindowIds,
+      restoredFrom: checkpointId,
+      mode: 'checkpoint',
+      state: summarizeState(stateCache)
+    };
+  } finally {
+    restoreInProgress = false;
+  }
 }
 
 async function restoreLatestState() {
@@ -305,25 +385,42 @@ async function restoreLatestState() {
     throw new Error('No recoverable state found');
   }
 
-  const restoredWindowIds = await materializeState(latestState);
-  await onMutatingEvent('restore-latest-state', { restoredWindowIds }, { immediate: true });
-  stateCache = latestState;
-  return {
-    restoredWindowIds,
-    restoredFrom: 'latest-state',
-    mode: 'checkpoint+event-log',
-    state: summarizeState(latestState)
-  };
+  restoreInProgress = true;
+  try {
+    const restoredWindowIds = await materializeState(latestState);
+    await rebuildStateCacheFromBrowser();
+    await onMutatingEvent('restore-latest-state', { restoredWindowIds }, { immediate: true });
+    return {
+      restoredWindowIds,
+      restoredFrom: 'latest-state',
+      mode: 'checkpoint+event-log',
+      state: summarizeState(stateCache)
+    };
+  } finally {
+    restoreInProgress = false;
+  }
 }
 
 async function materializeState(state) {
-  const restoredWindowIds = [];
-  for (const win of state.windows) {
-    const urls = win.tabs.map((tab) => tab.pendingUrl || tab.url).filter(Boolean);
-    if (!urls.length) continue;
+  if (!state || !Array.isArray(state.windows)) {
+    throw new Error('Invalid recoverable state');
+  }
 
+  const restoredWindowIds = [];
+
+  for (const win of state.windows) {
+    const tabs = Array.isArray(win?.tabs)
+      ? win.tabs
+          .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
+          .filter((tab) => tab.restoreUrl)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      : [];
+
+    if (!tabs.length) continue;
+
+    const firstTab = tabs[0];
     const createData = {
-      url: urls,
+      url: firstTab.restoreUrl,
       focused: !!win.focused,
       incognito: !!win.incognito
     };
@@ -347,17 +444,41 @@ async function materializeState(state) {
     const createdWindow = await chrome.windows.create(createData);
     restoredWindowIds.push(createdWindow.id);
 
-    if (Array.isArray(createdWindow.tabs)) {
-      const newTabs = createdWindow.tabs;
-      for (let i = 0; i < Math.min(newTabs.length, win.tabs.length); i += 1) {
-        await chrome.tabs.update(newTabs[i].id, {
-          pinned: !!win.tabs[i].pinned,
-          active: !!win.tabs[i].active
-        });
-      }
+    let createdTabs = Array.isArray(createdWindow.tabs) ? [...createdWindow.tabs] : [];
+    let baseTab = createdTabs[0] || null;
+
+    for (let i = 1; i < tabs.length; i += 1) {
+      const createdTab = await chrome.tabs.create({
+        windowId: createdWindow.id,
+        url: tabs[i].restoreUrl,
+        active: false,
+        pinned: false,
+        index: i
+      });
+      createdTabs.push(createdTab);
+    }
+
+    createdTabs = createdTabs.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+    for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
+      const targetTab = tabs[i];
+      await chrome.tabs.update(createdTabs[i].id, {
+        pinned: !!targetTab.pinned,
+        active: !!targetTab.active
+      });
+    }
+
+    if (!tabs.some((tab) => tab.active) && baseTab) {
+      await chrome.tabs.update(baseTab.id, { active: true });
     }
   }
+
   return restoredWindowIds;
+}
+
+async function rebuildStateCacheFromBrowser() {
+  stateCache = await captureCurrentState();
+  return stateCache;
 }
 
 async function captureCurrentState() {

@@ -20,5 +20,16 @@
     "default_title": "Edge Session Recovery",
     "default_popup": "popup.html"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "preview.html",
+        "preview.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "options_page": "options.html"
 }
