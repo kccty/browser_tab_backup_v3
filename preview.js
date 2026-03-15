@@ -3,10 +3,6 @@ const previewUI = window.EdgeRecoveryUI;
 const subtitleEl = document.getElementById('subtitle');
 const statusEl = document.getElementById('status');
 const panelEl = document.getElementById('panel');
-const snapshotTimeEl = document.getElementById('snapshotTime');
-const windowCountEl = document.getElementById('windowCount');
-const tabCountEl = document.getElementById('tabCount');
-
 const refreshBtn = document.getElementById('refreshBtn');
 const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
 const restoreLatestBtn = document.getElementById('restoreLatestBtn');
@@ -57,12 +53,6 @@ exportBtn.addEventListener('click', async () => {
   });
 });
 
-function setSummary(checkpoint, allWindows, selectedWindows) {
-  snapshotTimeEl.textContent = previewUI.formatTime(checkpoint?.createdAt, '—');
-  windowCountEl.textContent = String(selectedWindows.length || allWindows.length);
-  tabCountEl.textContent = String(previewUI.countTabs(selectedWindows.length ? selectedWindows : allWindows));
-}
-
 function setStatusStyle(isError = false) {
   statusEl.classList.toggle('error', isError);
 }
@@ -98,7 +88,6 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
-    setSummary(checkpoint, [], []);
     panelEl.innerHTML = '<div class="tab-empty">还没有可预览的 checkpoint。先点一次保存。</div>';
     renderMessage(successMessage || '还没有可预览的 checkpoint。');
     return;

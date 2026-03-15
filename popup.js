@@ -3,10 +3,6 @@ const popupUI = window.EdgeRecoveryUI;
 const subtitleEl = document.getElementById('subtitle');
 const statusEl = document.getElementById('status');
 const previewListEl = document.getElementById('previewList');
-const snapshotTimeEl = document.getElementById('snapshotTime');
-const windowCountEl = document.getElementById('windowCount');
-const tabCountEl = document.getElementById('tabCount');
-
 const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
 const restoreLatestBtn = document.getElementById('restoreLatestBtn');
 const exportBtn = document.getElementById('exportBtn');
@@ -59,12 +55,6 @@ exportBtn.addEventListener('click', async () => {
   });
 });
 
-function setSummary(checkpoint, allWindows, selectedWindows) {
-  snapshotTimeEl.textContent = popupUI.formatTime(checkpoint?.createdAt, '—');
-  windowCountEl.textContent = String(selectedWindows.length || allWindows.length);
-  tabCountEl.textContent = String(popupUI.countTabs(selectedWindows.length ? selectedWindows : allWindows));
-}
-
 function setStatusStyle(isError = false) {
   statusEl.classList.toggle('error', isError);
 }
@@ -107,7 +97,6 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
-    setSummary(checkpoint, [], []);
     previewListEl.innerHTML = '';
     showStatus(successMessage || '还没有可预览的 checkpoint。先点一次保存。');
     return;
@@ -118,7 +107,6 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     selectedWindowId = selectedWindows[0].id;
   }
 
-  setSummary(checkpoint, windows, selectedWindows);
   previewListEl.innerHTML = `${popupUI.renderToolbar({ showOpenPreview: true, compact: true })}${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map((win, index) => popupUI.renderWindowCard(win, index)).join('')}`;
   previewListEl.classList.remove('hidden');
   bindWindowSelector();
