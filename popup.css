@@ -30,10 +30,12 @@
 }
 
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+html {
+  min-height: 100%;
+  width: 100%;
+}
 body {
   margin: 0;
-  width: 620px;
   min-width: 620px;
   min-height: 600px;
   background: var(--bg);
@@ -69,6 +71,8 @@ button.ghost {
 }
 
 .popup-shell {
+  width: 620px;
+  min-width: 620px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -124,6 +128,7 @@ button.ghost {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
 }
 .summary-card {
   padding: 14px;
@@ -162,6 +167,7 @@ button.ghost {
   max-height: 410px;
   overflow: auto;
   padding-bottom: 10px;
+  min-width: 0;
 }
 .inline-toolbar {
   display: flex;
@@ -266,6 +272,9 @@ button.ghost {
 
 @media (max-width: 720px) {
   body {
+    min-width: 0;
+  }
+  .popup-shell {
     width: 100%;
     min-width: 0;
   }
