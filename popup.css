@@ -5,7 +5,7 @@
   --panel-soft: #fafafa;
   --text: #111111;
   --muted: #70757a;
-  --line: #ececec;
+  --line: transparent;
   --accent: #111111;
   --accent-soft: #f5f5f5;
   --chip: #f5f5f5;
@@ -49,8 +49,8 @@ button {
 .panel,
 .window-card {
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 0;
   box-shadow: none;
 }
 
@@ -138,8 +138,8 @@ button {
   right: 0;
   min-width: 132px;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 0;
   box-shadow: none;
   padding: 6px;
   z-index: 10;
@@ -168,16 +168,15 @@ button {
 .status-banner {
   margin: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--accent-soft);
   color: var(--muted);
-  border: 1px solid var(--line);
+  border: 0;
 }
 
 .status-banner.error {
   background: #fff5f5;
   color: #b42318;
-  border-color: #f2d6d6;
 }
 
 .hidden { display: none; }
@@ -202,19 +201,19 @@ button {
 
 .window-pill {
   flex: 0 0 auto;
-  padding: 7px 12px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: var(--chip);
-  color: var(--text);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .window-pill.active {
-  background: var(--chip-active);
-  color: var(--chip-active-text);
-  border-color: var(--chip-active);
+  background: transparent;
+  color: var(--text);
+  border: 0;
 }
 
 .window-card {
@@ -227,8 +226,8 @@ button {
 
 .window-head {
   padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel-soft);
+  border-bottom: 0;
+  background: transparent;
 }
 
 .window-title {
