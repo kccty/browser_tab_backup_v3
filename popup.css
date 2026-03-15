@@ -253,13 +253,9 @@ button {
   border-radius: 12px;
 }
 
-.tab-card:hover {
-  background: var(--panel-soft);
-}
-
-.tab-card:hover .url,
-.tab-card:focus-within .url {
-  display: block;
+.tab-card:hover,
+.tab-card:focus-within {
+  background: #f3f3f3;
 }
 
 .icon {
@@ -283,23 +279,17 @@ button {
 }
 
 .title {
-  font-weight: 600;
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.45;
   word-break: break-word;
-}
-
-.url {
-  display: none;
-  color: var(--muted);
-  font-size: 11px;
-  word-break: break-all;
-  margin-top: 2px;
 }
 
 .badges {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .badge {

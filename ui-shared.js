@@ -118,7 +118,6 @@ function renderWindowCard(win, index) {
             ${renderFavicon(tab)}
             <div class="tab-main">
               <div class="title">${escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页')}</div>
-              <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
               <div class="badges">${renderBadges(tab)}</div>
             </div>
           </div>
