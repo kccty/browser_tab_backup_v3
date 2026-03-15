@@ -438,23 +438,21 @@ async function materializeState(state) {
       incognito: !!win.incognito
     };
 
-    const normalizedState = normalizeWindowStateForCreate(win.state);
-    const shouldUseState = normalizedState && normalizedState !== 'normal';
-
-    if (shouldUseState) {
-      createData.state = normalizedState;
-    } else {
-      const left = nullableNumber(win.left);
-      const top = nullableNumber(win.top);
-      const width = nullableNumber(win.width);
-      const height = nullableNumber(win.height);
-      if (left !== undefined) createData.left = left;
-      if (top !== undefined) createData.top = top;
-      if (width !== undefined) createData.width = width;
-      if (height !== undefined) createData.height = height;
-    }
+    const left = nullableNumber(win.left);
+    const top = nullableNumber(win.top);
+    const width = nullableNumber(win.width);
+    const height = nullableNumber(win.height);
+    if (left !== undefined) createData.left = left;
+    if (top !== undefined) createData.top = top;
+    if (width !== undefined) createData.width = width;
+    if (height !== undefined) createData.height = height;
 
     const createdWindow = await chrome.windows.create(createData);
+
+    const normalizedState = normalizeWindowStateForCreate(win.state);
+    if (normalizedState && normalizedState !== 'normal') {
+      await chrome.windows.update(createdWindow.id, { state: normalizedState });
+    }
     restoredWindowIds.push(createdWindow.id);
 
     let createdTabs = Array.isArray(createdWindow.tabs) ? [...createdWindow.tabs] : [];
@@ -809,9 +807,6 @@ function sanitizeUrl(value) {
 function normalizeWindowStateForCreate(state) {
   if (state === 'minimized' || state === 'maximized' || state === 'fullscreen') {
     return state;
-  }
-  if (state === 'normal' || !state) {
-    return 'normal';
   }
   return 'normal';
 }
