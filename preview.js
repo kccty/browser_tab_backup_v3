@@ -3,6 +3,9 @@ const panelEl = document.getElementById('panel');
 const refreshBtn = document.getElementById('refreshBtn');
 const openOptionsBtn = document.getElementById('openOptionsBtn');
 
+let currentPreview = null;
+let selectedWindowId = null;
+
 refreshBtn.addEventListener('click', () => loadPreview());
 openOptionsBtn.addEventListener('click', async () => {
   if (chrome.runtime.openOptionsPage) {
@@ -43,6 +46,35 @@ function renderFavicon(tab) {
   return '<span class="icon fallback-icon">🌐</span>';
 }
 
+function getSelectedWindows(windows) {
+  if (!Array.isArray(windows) || !windows.length) return [];
+  if (!selectedWindowId) return [windows[0]];
+  const selected = windows.find((win) => String(win.id) === String(selectedWindowId));
+  return selected ? [selected] : [windows[0]];
+}
+
+function renderWindowSelector(windows) {
+  if (!Array.isArray(windows) || !windows.length) return '';
+  const selected = selectedWindowId ?? windows[0].id;
+  return `
+    <div class="meta selector-bar">
+      <div>快照 ID：${escapeHtml(currentPreview?.checkpoint?.id || '未知')}</div>
+      <div>记录时间：${escapeHtml(formatTime(currentPreview?.checkpoint?.createdAt))}</div>
+      <div>窗口总数：${windows.length}</div>
+      <div>
+        <label for="windowSelect">预览窗口：</label>
+        <select id="windowSelect">
+          ${windows.map((win, index) => `
+            <option value="${escapeHtml(win.id)}" ${String(win.id) === String(selected) ? 'selected' : ''}>
+              窗口 ${index + 1} · ${(win.tabs || []).length} 个页签
+            </option>
+          `).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
 function renderWindow(win, index) {
   const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
   return `
@@ -69,7 +101,17 @@ function renderWindow(win, index) {
   `;
 }
 
+function bindWindowSelector(windows) {
+  const select = document.getElementById('windowSelect');
+  if (!select) return;
+  select.addEventListener('change', (event) => {
+    selectedWindowId = event.target.value;
+    renderPreview(currentPreview);
+  });
+}
+
 function renderPreview(preview) {
+  currentPreview = preview;
   const checkpoint = preview?.checkpoint || null;
   const windows = Array.isArray(preview?.windows) ? preview.windows : [];
   subtitleEl.textContent = checkpoint
@@ -77,20 +119,25 @@ function renderPreview(preview) {
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
-    panelEl.innerHTML = '<div class="empty">还没有可预览的快照。先让插件记录一次浏览器状态。</div>';
+    panelEl.innerHTML = '<div class="empty">还没有可预览的快照。先手动保存一次 checkpoint。</div>';
     return;
   }
 
-  const totalTabs = windows.reduce((sum, win) => sum + ((win.tabs || []).length), 0);
+  const selectedWindows = getSelectedWindows(windows);
+  if (!selectedWindowId && selectedWindows[0]) {
+    selectedWindowId = selectedWindows[0].id;
+  }
+  const totalTabs = selectedWindows.reduce((sum, win) => sum + ((win.tabs || []).length), 0);
+
   panelEl.innerHTML = `
+    ${renderWindowSelector(windows)}
     <div class="meta">
-      <div>快照 ID：${escapeHtml(checkpoint.id || '未知')}</div>
-      <div>记录时间：${escapeHtml(formatTime(checkpoint.createdAt))}</div>
-      <div>窗口：${windows.length}</div>
-      <div>页签：${totalTabs}</div>
+      <div>当前预览窗口：${selectedWindows.length}</div>
+      <div>当前预览页签：${totalTabs}</div>
     </div>
-    ${windows.map(renderWindow).join('')}
+    ${selectedWindows.map(renderWindow).join('')}
   `;
+  bindWindowSelector(windows);
 }
 
 async function loadPreview() {

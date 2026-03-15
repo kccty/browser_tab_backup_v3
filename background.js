@@ -223,6 +223,7 @@ async function trimEvents(eventStore, maxEvents) {
 async function createCheckpoint(reason = 'manual') {
   await bootstrap();
   await flushEvents();
+  await rebuildStateCacheFromBrowser();
 
   const checkpoint = {
     id: crypto.randomUUID(),

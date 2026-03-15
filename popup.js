@@ -8,6 +8,9 @@ const refreshBtn = document.getElementById('refreshBtn');
 const openPreviewBtn = document.getElementById('openPreviewBtn');
 const openOptionsBtn = document.getElementById('openOptionsBtn');
 
+let currentPreview = null;
+let selectedWindowId = null;
+
 refreshBtn.addEventListener('click', () => loadPreview());
 openPreviewBtn.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('preview.html') }));
 openOptionsBtn.addEventListener('click', async () => {
@@ -48,6 +51,30 @@ function renderBadges(tab) {
   return badges.join('');
 }
 
+function getSelectedWindows(windows) {
+  if (!Array.isArray(windows) || !windows.length) return [];
+  if (!selectedWindowId) return [windows[0]];
+  const selected = windows.find((win) => String(win.id) === String(selectedWindowId));
+  return selected ? [selected] : [windows[0]];
+}
+
+function renderWindowSelector(windows) {
+  if (!Array.isArray(windows) || !windows.length) return '';
+  const selected = selectedWindowId ?? windows[0].id;
+  return `
+    <div class="window-selector">
+      <label class="selector-label" for="windowSelect">预览窗口</label>
+      <select id="windowSelect" class="window-select">
+        ${windows.map((win, index) => `
+          <option value="${escapeHtml(win.id)}" ${String(win.id) === String(selected) ? 'selected' : ''}>
+            窗口 ${index + 1} · ${(win.tabs || []).length} 个页签
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
 function renderWindow(win, index) {
   const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
   return `
@@ -83,15 +110,39 @@ function showStatus(text) {
   previewListEl.classList.add('hidden');
 }
 
+function bindWindowSelector(windows) {
+  const select = document.getElementById('windowSelect');
+  if (!select) return;
+  select.addEventListener('change', (event) => {
+    selectedWindowId = event.target.value;
+    renderPreview(currentPreview);
+  });
+}
+
 function showPreview(checkpoint, windows) {
-  setSummary(checkpoint, windows);
   if (!checkpoint || windows.length === 0) {
-    showStatus('还没有可预览的快照。先让插件记录一次浏览器状态。');
+    setSummary(checkpoint, []);
+    showStatus('还没有可预览的快照。先手动保存一次 checkpoint。');
     return;
   }
-  previewListEl.innerHTML = windows.map(renderWindow).join('');
+
+  const selectedWindows = getSelectedWindows(windows);
+  if (!selectedWindowId && selectedWindows[0]) {
+    selectedWindowId = selectedWindows[0].id;
+  }
+  setSummary(checkpoint, selectedWindows);
+
+  previewListEl.innerHTML = `${renderWindowSelector(windows)}${selectedWindows.map(renderWindow).join('')}`;
   previewListEl.classList.remove('hidden');
   statusEl.classList.add('hidden');
+  bindWindowSelector(windows);
+}
+
+function renderPreview(preview) {
+  currentPreview = preview;
+  const checkpoint = preview?.checkpoint || null;
+  const windows = Array.isArray(preview?.windows) ? preview.windows : [];
+  showPreview(checkpoint, windows);
 }
 
 async function loadPreview() {
@@ -102,9 +153,7 @@ async function loadPreview() {
       showStatus(preview?.error || '读取预览失败');
       return;
     }
-    const checkpoint = preview.checkpoint || null;
-    const windows = Array.isArray(preview.windows) ? preview.windows : [];
-    showPreview(checkpoint, windows);
+    renderPreview(preview);
   } catch (error) {
     showStatus(error?.message || String(error));
   }

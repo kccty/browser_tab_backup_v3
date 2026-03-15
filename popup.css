@@ -82,6 +82,25 @@ button.secondary:hover { background: var(--panel-2); }
 .status { padding: 18px; color: var(--muted); }
 .hidden { display: none; }
 .preview-list { max-height: 360px; overflow: auto; }
+.window-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.selector-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.window-select {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 8px 10px;
+}
 .window { border-top: 1px solid var(--line); }
 .window:first-child { border-top: 0; }
 .window-head { padding: 10px 12px; background: var(--panel-2); }
