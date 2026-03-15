@@ -807,13 +807,13 @@ function sanitizeUrl(value) {
 }
 
 function normalizeWindowStateForCreate(state) {
-  if (state === 'minimized' || state === 'maximized') {
+  if (state === 'minimized' || state === 'maximized' || state === 'fullscreen') {
     return state;
   }
-  if (state === 'normal') {
+  if (state === 'normal' || !state) {
     return 'normal';
   }
-  return undefined;
+  return 'normal';
 }
 
 function nullableNumber(value) {

@@ -153,4 +153,12 @@ button.secondary:hover { background: var(--panel-2); }
   background: rgba(96,165,250,0.12);
   color: var(--accent);
 }
+.inline-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-bottom: 1px solid rgba(17,24,39,0.08);
+}
+
 .footer-actions { margin-top: 12px; justify-content: flex-end; }

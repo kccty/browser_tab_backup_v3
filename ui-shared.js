@@ -43,6 +43,16 @@ function getSelectedWindows(windows, selectedWindowId) {
   return selected ? [selected] : [windows[0]];
 }
 
+function renderToolbar({ showOpenPreview = false } = {}) {
+  return `
+    <div class="inline-toolbar">
+      <button id="inlineSaveCheckpointBtn">保存 checkpoint</button>
+      <button id="inlineRestoreLatestBtn" class="secondary">恢复最新状态</button>
+      ${showOpenPreview ? '<button id="inlineOpenPreviewBtn" class="secondary">单独页面</button>' : ''}
+    </div>
+  `;
+}
+
 function renderWindowSelector(windows, selectedWindowId) {
   if (!Array.isArray(windows) || !windows.length) return '';
   const selected = selectedWindowId ?? windows[0].id;
@@ -89,6 +99,7 @@ function countTabs(windows) {
 window.EdgeRecoveryUI = {
   escapeHtml,
   formatTime,
+  renderToolbar,
   renderWindowSelector,
   renderWindowCard,
   getSelectedWindows,

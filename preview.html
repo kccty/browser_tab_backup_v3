@@ -57,6 +57,16 @@
       background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
       overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
+    .inline-toolbar {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .inline-toolbar button.secondary {
+      background: var(--panel-2);
+    }
     .meta {
       padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--muted);
       display: flex; gap: 16px; flex-wrap: wrap;
@@ -125,8 +135,10 @@
         <div class="sub" id="subtitle">查看最近一次快照将恢复哪些窗口和页签</div>
       </div>
       <div class="actions">
+        <button id="saveCheckpointBtn">保存 checkpoint</button>
+        <button class="secondary" id="restoreLatestBtn">恢复最新状态</button>
         <button class="secondary" id="refreshBtn">刷新</button>
-        <button class="secondary" id="openOptionsBtn">打开设置</button>
+        <button class="secondary" id="openPopupBtn">关闭</button>
       </div>
     </div>
 

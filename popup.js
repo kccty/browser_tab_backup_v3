@@ -8,20 +8,16 @@ const windowCountEl = document.getElementById('windowCount');
 const tabCountEl = document.getElementById('tabCount');
 
 const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
+const restoreLatestBtn = document.getElementById('restoreLatestBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const openPreviewBtn = document.getElementById('openPreviewBtn');
-const openOptionsBtn = document.getElementById('openOptionsBtn');
 
 let currentPreview = null;
 let selectedWindowId = null;
+let lastStatusText = '正在加载预览…';
 
 refreshBtn.addEventListener('click', () => loadPreview());
 openPreviewBtn.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('preview.html') }));
-openOptionsBtn.addEventListener('click', async () => {
-  if (chrome.runtime.openOptionsPage) {
-    await chrome.runtime.openOptionsPage();
-  }
-});
 
 saveCheckpointBtn.addEventListener('click', async () => {
   saveCheckpointBtn.disabled = true;
@@ -44,19 +40,43 @@ saveCheckpointBtn.addEventListener('click', async () => {
   }
 });
 
-function setSummary(checkpoint, windows) {
+restoreLatestBtn.addEventListener('click', async () => {
+  restoreLatestBtn.disabled = true;
+  const previousText = restoreLatestBtn.textContent;
+  restoreLatestBtn.textContent = '恢复中…';
+  showStatus('正在恢复最新状态…');
+
+  try {
+    const result = await chrome.runtime.sendMessage({ type: 'restoreLatestState' });
+    if (!result?.ok) {
+      throw new Error(result?.error || '恢复最新状态失败');
+    }
+    await loadPreview({ successMessage: '最新状态恢复完成。' });
+  } catch (error) {
+    showStatus(error?.message || String(error));
+  } finally {
+    restoreLatestBtn.disabled = false;
+    restoreLatestBtn.textContent = previousText;
+  }
+});
+
+function setSummary(checkpoint, allWindows, selectedWindows) {
   snapshotTimeEl.textContent = popupUI.formatTime(checkpoint?.createdAt, '—');
-  windowCountEl.textContent = String(windows.length);
-  tabCountEl.textContent = String(popupUI.countTabs(windows));
+  windowCountEl.textContent = String(selectedWindows.length || allWindows.length);
+  tabCountEl.textContent = String(popupUI.countTabs(selectedWindows.length ? selectedWindows : allWindows));
 }
 
 function showStatus(text) {
+  lastStatusText = text;
   statusEl.textContent = text;
   statusEl.classList.remove('hidden');
-  previewListEl.classList.add('hidden');
 }
 
-function bindWindowSelector(windows) {
+function hideStatus() {
+  statusEl.classList.add('hidden');
+}
+
+function bindWindowSelector() {
   const select = document.getElementById('windowSelect');
   if (!select) return;
   select.addEventListener('change', (event) => {
@@ -75,7 +95,8 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
-    setSummary(checkpoint, []);
+    setSummary(checkpoint, [], []);
+    previewListEl.innerHTML = '';
     showStatus(successMessage || '还没有可预览的快照。先手动保存一次 checkpoint。');
     return;
   }
@@ -85,14 +106,34 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     selectedWindowId = selectedWindows[0].id;
   }
 
-  setSummary(checkpoint, selectedWindows);
-  previewListEl.innerHTML = `${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(popupUI.renderWindowCard).join('')}`;
+  setSummary(checkpoint, windows, selectedWindows);
+  previewListEl.innerHTML = `${popupUI.renderToolbar({ showOpenPreview: true })}${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map((win, index) => popupUI.renderWindowCard(win, index)).join('')}`;
   previewListEl.classList.remove('hidden');
-  statusEl.classList.add('hidden');
-  bindWindowSelector(windows);
+  bindWindowSelector();
+  bindInlineActions();
 
   if (successMessage) {
-    statusEl.textContent = successMessage;
+    showStatus(successMessage);
+  } else if (lastStatusText && lastStatusText.includes('失败')) {
+    showStatus(lastStatusText);
+  } else {
+    hideStatus();
+  }
+}
+
+function bindInlineActions() {
+  const saveBtn = document.getElementById('inlineSaveCheckpointBtn');
+  const restoreBtn = document.getElementById('inlineRestoreLatestBtn');
+  const openPreviewInlineBtn = document.getElementById('inlineOpenPreviewBtn');
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => saveCheckpointBtn.click());
+  }
+  if (restoreBtn) {
+    restoreBtn.addEventListener('click', () => restoreLatestBtn.click());
+  }
+  if (openPreviewInlineBtn) {
+    openPreviewInlineBtn.addEventListener('click', () => openPreviewBtn.click());
   }
 }
 
@@ -102,11 +143,13 @@ async function loadPreview(options = {}) {
     const preview = await chrome.runtime.sendMessage({ type: 'get-latest-preview' });
     if (!preview || preview.error) {
       showStatus(preview?.error || '读取预览失败');
+      previewListEl.innerHTML = '';
       return;
     }
     renderPreview(preview, options);
   } catch (error) {
     showStatus(error?.message || String(error));
+    previewListEl.innerHTML = '';
   }
 }
 
