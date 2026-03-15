@@ -25,15 +25,15 @@ function renderFavicon(tab) {
 
 function renderBadges(tab) {
   const badges = [];
-  if (tab.active) badges.push('<span class="badge">当前激活</span>');
-  if (tab.pinned) badges.push('<span class="badge">已固定</span>');
+  if (tab.active) badges.push('<span class="badge primary">当前</span>');
+  if (tab.pinned) badges.push('<span class="badge">固定</span>');
   if (tab.groupId >= 0) badges.push(`<span class="badge">分组 ${escapeHtml(tab.groupId)}</span>`);
   return badges.join('');
 }
 
 function getWindowLabel(win, index) {
   const tabs = Array.isArray(win?.tabs) ? win.tabs : [];
-  return `窗口 ${index + 1} · ${tabs.length} 个页签`;
+  return `窗口${index + 1}` + (tabs.length ? ` · ${tabs.length}` : '');
 }
 
 function getSelectedWindows(windows, selectedWindowId) {
@@ -43,15 +43,35 @@ function getSelectedWindows(windows, selectedWindowId) {
   return selected ? [selected] : [windows[0]];
 }
 
-function renderToolbar({ showOpenPreview = false, compact = false } = {}) {
+function renderTopbar({ title, subtitle = '', showOpenPreview = false, menuLabel = '更多' }) {
   return `
-    <div class="inline-toolbar${compact ? ' compact' : ''}">
-      <button id="inlineSaveCheckpointBtn">保存</button>
-      <button id="inlineRestoreLatestBtn" class="secondary">恢复</button>
-      <button id="inlineExportBtn" class="secondary">导出</button>
-      <button id="inlineImportBtn" class="secondary">导入</button>
-      ${showOpenPreview ? '<button id="inlineOpenPreviewBtn" class="ghost">单独页面</button>' : ''}
-    </div>
+    <section class="topbar-card">
+      <div class="topbar-row">
+        <div class="topbar-copy">
+          <div class="topbar-title">${escapeHtml(title)}</div>
+          ${subtitle ? `<div class="topbar-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+        </div>
+        <div class="topbar-actions">
+          <button id="saveCheckpointBtn" class="icon-btn primary" title="保存" aria-label="保存">
+            <span class="icon-symbol">💾</span>
+          </button>
+          <button id="restoreLatestBtn" class="icon-btn" title="恢复" aria-label="恢复">
+            <span class="icon-symbol">↺</span>
+          </button>
+          <details class="more-menu">
+            <summary class="icon-btn" aria-label="更多操作" title="更多操作">
+              <span class="icon-symbol">⋯</span>
+            </summary>
+            <div class="menu-panel">
+              <button id="exportBtn" class="menu-item" type="button">导出</button>
+              <button id="importBtn" class="menu-item" type="button">导入</button>
+              <button id="refreshBtn" class="menu-item" type="button">刷新</button>
+              ${showOpenPreview ? '<button id="openPreviewBtn" class="menu-item" type="button">单独页面</button>' : ''}
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -59,15 +79,16 @@ function renderWindowSelector(windows, selectedWindowId) {
   if (!Array.isArray(windows) || !windows.length) return '';
   const selected = selectedWindowId ?? windows[0].id;
   return `
-    <div class="window-selector">
-      <label class="selector-label" for="windowSelect">预览窗口</label>
-      <select id="windowSelect" class="window-select">
-        ${windows.map((win, index) => `
-          <option value="${escapeHtml(win.id)}" ${String(win.id) === String(selected) ? 'selected' : ''}>
-            ${escapeHtml(getWindowLabel(win, index))}
-          </option>
-        `).join('')}
-      </select>
+    <div class="window-switcher" role="tablist" aria-label="窗口选择">
+      ${windows.map((win, index) => `
+        <button
+          type="button"
+          class="window-pill${String(win.id) === String(selected) ? ' active' : ''}"
+          data-window-id="${escapeHtml(win.id)}"
+        >
+          ${escapeHtml(getWindowLabel(win, index))}
+        </button>
+      `).join('')}
     </div>
   `;
 }
@@ -78,8 +99,8 @@ function renderWindowCard(win, index) {
     <section class="window-card">
       <div class="window-head">
         <div>
-          <div class="window-title">窗口 ${index + 1}</div>
-          <div class="window-sub">${tabs.length} 个页签${win.state ? ` · 状态 ${escapeHtml(win.state)}` : ''}${win.type ? ` · 类型 ${escapeHtml(win.type)}` : ''}</div>
+          <div class="window-title">窗口${index + 1}</div>
+          <div class="window-sub">${tabs.length} 个页签${win.state ? ` · ${escapeHtml(win.state)}` : ''}</div>
         </div>
       </div>
       <div class="tabs-wrap">
@@ -105,7 +126,7 @@ function countTabs(windows) {
 window.EdgeRecoveryUI = {
   escapeHtml,
   formatTime,
-  renderToolbar,
+  renderTopbar,
   renderWindowSelector,
   renderWindowCard,
   getSelectedWindows,

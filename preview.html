@@ -5,80 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恢复预览 - Edge History Recovery</title>
   <link rel="stylesheet" href="popup.css" />
-  <style>
-    body {
-      width: auto;
-      min-height: 100vh;
-    }
-    .page-shell {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 28px 20px 40px;
-    }
-    .page-topbar {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
-    .page-topbar h1 {
-      margin: 8px 0 6px;
-      font-size: 30px;
-      line-height: 1.1;
-    }
-    .page-topbar .sub {
-      color: var(--muted);
-      margin: 0;
-    }
-    .page-toolbar {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 10px;
-      min-width: min(100%, 560px);
-    }
-    .page-toolbar button {
-      width: 100%;
-    }
-    .page-panel {
-      overflow: hidden;
-    }
-    .page-panel .inline-toolbar {
-      display: none;
-    }
-    @media (max-width: 780px) {
-      .page-toolbar {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        min-width: 100%;
-      }
-    }
-  </style>
 </head>
-<body>
+<body class="page-body">
   <main class="page-shell">
-    <section class="hero-card">
-      <div class="page-topbar">
-        <div>
-          <span class="eyebrow">Edge History Recovery</span>
-          <h1>恢复预览</h1>
-          <p class="sub" id="subtitle">查看最近一次 checkpoint 将恢复哪些窗口和页签</p>
-        </div>
-        <div class="page-toolbar">
-          <button id="saveCheckpointBtn">保存</button>
-          <button id="restoreLatestBtn" class="secondary">恢复</button>
-          <button id="exportBtn" class="secondary">导出</button>
-          <button id="importBtn" class="secondary">导入</button>
-          <button id="refreshBtn" class="ghost">刷新</button>
-        </div>
-        <input id="importFileInput" type="file" accept="application/json,.json" hidden />
-      </div>
-    </section>
+    <div id="topbarMount"></div>
 
     <section class="panel preview-panel page-panel">
       <div class="status-banner" id="status">正在加载预览…</div>
       <div class="preview-list" id="panel"></div>
     </section>
+
+    <input id="importFileInput" type="file" accept="application/json,.json" hidden />
   </main>
 
   <script src="ui-shared.js"></script>
