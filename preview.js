@@ -1,59 +1,82 @@
 const previewUI = window.EdgeRecoveryUI;
 
 const subtitleEl = document.getElementById('subtitle');
+const statusEl = document.getElementById('status');
 const panelEl = document.getElementById('panel');
+const snapshotTimeEl = document.getElementById('snapshotTime');
+const windowCountEl = document.getElementById('windowCount');
+const tabCountEl = document.getElementById('tabCount');
+
 const refreshBtn = document.getElementById('refreshBtn');
 const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
 const restoreLatestBtn = document.getElementById('restoreLatestBtn');
-const openPopupBtn = document.getElementById('openPopupBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFileInput = document.getElementById('importFileInput');
 
 let currentPreview = null;
 let selectedWindowId = null;
 let lastMessage = '';
 
 refreshBtn.addEventListener('click', () => loadPreview());
+importBtn.addEventListener('click', () => importFileInput.click());
+importFileInput.addEventListener('change', handleImportFile);
+
 saveCheckpointBtn.addEventListener('click', async () => {
-  saveCheckpointBtn.disabled = true;
-  const previousText = saveCheckpointBtn.textContent;
-  saveCheckpointBtn.textContent = '保存中…';
-  renderMessage('正在保存 checkpoint…');
-  try {
+  await withButtonBusy(saveCheckpointBtn, '保存中…', async () => {
+    renderMessage('正在保存 checkpoint…');
     const result = await chrome.runtime.sendMessage({ type: 'captureCheckpoint' });
     if (!result?.ok) {
       throw new Error(result?.error || '保存 checkpoint 失败');
     }
     selectedWindowId = null;
     await loadPreview({ successMessage: 'checkpoint 已保存，预览已刷新。' });
-  } catch (error) {
-    renderMessage(error?.message || String(error), true);
-  } finally {
-    saveCheckpointBtn.disabled = false;
-    saveCheckpointBtn.textContent = previousText;
-  }
+  });
 });
 
 restoreLatestBtn.addEventListener('click', async () => {
-  restoreLatestBtn.disabled = true;
-  const previousText = restoreLatestBtn.textContent;
-  restoreLatestBtn.textContent = '恢复中…';
-  renderMessage('正在恢复最新状态…');
-  try {
+  await withButtonBusy(restoreLatestBtn, '恢复中…', async () => {
+    renderMessage('正在恢复最新状态…');
     const result = await chrome.runtime.sendMessage({ type: 'restoreLatestState' });
     if (!result?.ok) {
       throw new Error(result?.error || '恢复最新状态失败');
     }
     await loadPreview({ successMessage: '最新状态恢复完成。' });
-  } catch (error) {
-    renderMessage(error?.message || String(error), true);
-  } finally {
-    restoreLatestBtn.disabled = false;
-    restoreLatestBtn.textContent = previousText;
-  }
+  });
 });
 
-openPopupBtn.addEventListener('click', () => {
-  window.close();
+exportBtn.addEventListener('click', async () => {
+  await withButtonBusy(exportBtn, '导出中…', async () => {
+    renderMessage('正在导出 checkpoint…');
+    const result = await chrome.runtime.sendMessage({ type: 'exportLatestCheckpoint' });
+    if (!result?.ok || !result.payload) {
+      throw new Error(result?.error || '导出失败');
+    }
+    downloadCheckpoint(result.payload);
+    renderMessage('checkpoint 已导出。');
+  });
 });
+
+function setSummary(checkpoint, allWindows, selectedWindows) {
+  snapshotTimeEl.textContent = previewUI.formatTime(checkpoint?.createdAt, '—');
+  windowCountEl.textContent = String(selectedWindows.length || allWindows.length);
+  tabCountEl.textContent = String(previewUI.countTabs(selectedWindows.length ? selectedWindows : allWindows));
+}
+
+function setStatusStyle(isError = false) {
+  statusEl.classList.toggle('error', isError);
+}
+
+function renderMessage(text, isError = false) {
+  lastMessage = text;
+  statusEl.textContent = text;
+  setStatusStyle(isError);
+  statusEl.classList.remove('hidden');
+}
+
+function clearMessage() {
+  statusEl.classList.add('hidden');
+}
 
 function bindWindowSelector() {
   const select = document.getElementById('windowSelect');
@@ -62,32 +85,6 @@ function bindWindowSelector() {
     selectedWindowId = event.target.value;
     renderPreview(currentPreview);
   });
-}
-
-function bindInlineActions() {
-  const saveBtn = document.getElementById('inlineSaveCheckpointBtn');
-  const restoreBtn = document.getElementById('inlineRestoreLatestBtn');
-  const openPreviewBtn = document.getElementById('inlineOpenPreviewBtn');
-
-  if (saveBtn) saveBtn.addEventListener('click', () => saveCheckpointBtn.click());
-  if (restoreBtn) restoreBtn.addEventListener('click', () => restoreLatestBtn.click());
-  if (openPreviewBtn) openPreviewBtn.remove();
-}
-
-function renderMessage(text, isError = false) {
-  lastMessage = text;
-  const status = `<div class="${isError ? 'error' : 'loading'}">${previewUI.escapeHtml(text)}</div>`;
-  const messageEl = document.getElementById('panelMessage');
-  if (messageEl) {
-    messageEl.outerHTML = `<div id="panelMessage">${status}</div>`;
-    return;
-  }
-  panelEl.insertAdjacentHTML('afterbegin', `<div id="panelMessage">${status}</div>`);
-}
-
-function clearMessage() {
-  const messageEl = document.getElementById('panelMessage');
-  if (messageEl) messageEl.remove();
 }
 
 function renderPreview(preview, { successMessage = '' } = {}) {
@@ -101,8 +98,9 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
-    panelEl.innerHTML = '<div class="empty">还没有可预览的快照。先手动保存一次 checkpoint。</div>';
-    if (successMessage) renderMessage(successMessage);
+    setSummary(checkpoint, [], []);
+    panelEl.innerHTML = '<div class="tab-empty">还没有可预览的 checkpoint。先点一次保存。</div>';
+    renderMessage(successMessage || '还没有可预览的 checkpoint。');
     return;
   }
 
@@ -112,25 +110,28 @@ function renderPreview(preview, { successMessage = '' } = {}) {
   }
   const selectedTabCount = previewUI.countTabs(selectedWindows);
 
+  setSummary(checkpoint, windows, selectedWindows);
   panelEl.innerHTML = `
-    ${previewUI.renderToolbar({ showOpenPreview: false })}
-    <div class="meta">
-      <div>快照 ID：${previewUI.escapeHtml(checkpoint.id || '未知')}</div>
-      <div>记录时间：${previewUI.escapeHtml(previewUI.formatTime(checkpoint.createdAt, '未知时间'))}</div>
-      <div>来源：${previewUI.escapeHtml(preview?.source || 'checkpoint')}</div>
-    </div>
+    ${previewUI.renderToolbar({ showOpenPreview: false, compact: true })}
     ${previewUI.renderWindowSelector(windows, selectedWindowId)}
-    <div class="meta">
-      <div>窗口总数：${state?.windowCount ?? windows.length}</div>
-      <div>页签总数：${state?.tabCount ?? previewUI.countTabs(windows)}</div>
-      <div>当前预览窗口：${selectedWindows.length}</div>
-      <div>当前预览页签：${selectedTabCount}</div>
+    <div class="window-card" style="margin-bottom: 12px;">
+      <div class="window-head">
+        <div>
+          <div class="window-title">快照信息</div>
+          <div class="window-sub">恢复前先确认这次导入/保存的 checkpoint 内容</div>
+        </div>
+      </div>
+      <div class="tabs-wrap">
+        <div class="tab-card"><div class="tab-main"><div class="title">快照 ID</div><div class="url">${previewUI.escapeHtml(checkpoint.id || '未知')}</div></div></div>
+        <div class="tab-card"><div class="tab-main"><div class="title">记录时间</div><div class="url">${previewUI.escapeHtml(previewUI.formatTime(checkpoint.createdAt, '未知时间'))}</div></div></div>
+        <div class="tab-card"><div class="tab-main"><div class="title">来源</div><div class="url">${previewUI.escapeHtml(preview?.source || 'checkpoint')}</div></div></div>
+        <div class="tab-card"><div class="tab-main"><div class="title">窗口 / 页签</div><div class="url">${state?.windowCount ?? windows.length} 个窗口 · ${state?.tabCount ?? previewUI.countTabs(windows)} 个页签，当前预览 ${selectedWindows.length} 个窗口 / ${selectedTabCount} 个页签</div></div></div>
+      </div>
     </div>
     ${selectedWindows.map((win, index) => previewUI.renderWindowCard(win, index)).join('')}
   `;
 
   bindWindowSelector();
-  bindInlineActions();
 
   if (successMessage) {
     renderMessage(successMessage);
@@ -146,12 +147,71 @@ async function loadPreview(options = {}) {
   try {
     const preview = await chrome.runtime.sendMessage({ type: 'get-latest-preview' });
     if (!preview || preview.error) {
-      panelEl.innerHTML = `<div class="error">${previewUI.escapeHtml(preview?.error || '读取预览失败')}</div>`;
+      renderMessage(preview?.error || '读取预览失败', true);
+      panelEl.innerHTML = '';
       return;
     }
     renderPreview(preview, options);
   } catch (error) {
-    panelEl.innerHTML = `<div class="error">${previewUI.escapeHtml(error?.message || String(error))}</div>`;
+    renderMessage(error?.message || String(error), true);
+    panelEl.innerHTML = '';
+  }
+}
+
+async function handleImportFile(event) {
+  const [file] = event.target.files || [];
+  if (!file) return;
+
+  await withButtonBusy(importBtn, '导入中…', async () => {
+    renderMessage('正在导入 checkpoint 文件…');
+    const text = await file.text();
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error('导入文件不是有效的 JSON');
+    }
+
+    const result = await chrome.runtime.sendMessage({ type: 'importCheckpointFile', payload });
+    if (!result?.ok) {
+      throw new Error(result?.error || '导入失败');
+    }
+
+    selectedWindowId = null;
+    await loadPreview({ successMessage: 'checkpoint 已导入。' });
+  }).finally(() => {
+    importFileInput.value = '';
+  });
+}
+
+function downloadCheckpoint(payload) {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  const stamp = new Date(payload.checkpoint?.createdAt || payload.exportedAt || Date.now())
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace('T', '_')
+    .replace('Z', '');
+  anchor.href = url;
+  anchor.download = `checkpoint-${stamp}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function withButtonBusy(button, busyText, fn) {
+  button.disabled = true;
+  const previousText = button.textContent;
+  button.textContent = busyText;
+  try {
+    await fn();
+  } catch (error) {
+    renderMessage(error?.message || String(error), true);
+  } finally {
+    button.disabled = false;
+    button.textContent = previousText;
   }
 }
 

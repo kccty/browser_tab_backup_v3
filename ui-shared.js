@@ -43,12 +43,14 @@ function getSelectedWindows(windows, selectedWindowId) {
   return selected ? [selected] : [windows[0]];
 }
 
-function renderToolbar({ showOpenPreview = false } = {}) {
+function renderToolbar({ showOpenPreview = false, compact = false } = {}) {
   return `
-    <div class="inline-toolbar">
-      <button id="inlineSaveCheckpointBtn">保存 checkpoint</button>
-      <button id="inlineRestoreLatestBtn" class="secondary">恢复最新状态</button>
-      ${showOpenPreview ? '<button id="inlineOpenPreviewBtn" class="secondary">单独页面</button>' : ''}
+    <div class="inline-toolbar${compact ? ' compact' : ''}">
+      <button id="inlineSaveCheckpointBtn">保存</button>
+      <button id="inlineRestoreLatestBtn" class="secondary">恢复</button>
+      <button id="inlineExportBtn" class="secondary">导出</button>
+      <button id="inlineImportBtn" class="secondary">导入</button>
+      ${showOpenPreview ? '<button id="inlineOpenPreviewBtn" class="ghost">单独页面</button>' : ''}
     </div>
   `;
 }
@@ -73,21 +75,25 @@ function renderWindowSelector(windows, selectedWindowId) {
 function renderWindowCard(win, index) {
   const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
   return `
-    <section class="window">
+    <section class="window-card">
       <div class="window-head">
-        <div class="window-title">窗口 ${index + 1}</div>
-        <div class="window-sub">${tabs.length} 个页签${win.state ? ` · 状态 ${escapeHtml(win.state)}` : ''}${win.type ? ` · 类型 ${escapeHtml(win.type)}` : ''}</div>
-      </div>
-      ${tabs.map((tab) => `
-        <div class="tab">
-          ${renderFavicon(tab)}
-          <div>
-            <div class="title">${escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页')}</div>
-            <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
-            <div class="badges">${renderBadges(tab)}</div>
-          </div>
+        <div>
+          <div class="window-title">窗口 ${index + 1}</div>
+          <div class="window-sub">${tabs.length} 个页签${win.state ? ` · 状态 ${escapeHtml(win.state)}` : ''}${win.type ? ` · 类型 ${escapeHtml(win.type)}` : ''}</div>
         </div>
-      `).join('') || '<div class="tab-empty">这个窗口没有可恢复的页签</div>'}
+      </div>
+      <div class="tabs-wrap">
+        ${tabs.map((tab) => `
+          <div class="tab-card">
+            ${renderFavicon(tab)}
+            <div class="tab-main">
+              <div class="title">${escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页')}</div>
+              <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
+              <div class="badges">${renderBadges(tab)}</div>
+            </div>
+          </div>
+        `).join('') || '<div class="tab-empty">这个窗口没有可恢复的页签</div>'}
+      </div>
     </section>
   `;
 }

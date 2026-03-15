@@ -7,40 +7,43 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <main class="popup">
-    <header class="hero">
-      <div>
-        <h1>Edge History Recovery</h1>
-        <p class="muted" id="subtitle">预览最近一次快照将恢复哪些窗口和页签</p>
+  <main class="popup-shell">
+    <section class="hero-card">
+      <div class="hero-copy">
+        <span class="eyebrow">Edge History Recovery</span>
+        <h1>页签恢复中心</h1>
+        <p class="muted" id="subtitle">查看最近一次 checkpoint 的恢复预览</p>
       </div>
-      <div class="hero-actions">
-        <button id="saveCheckpointBtn">保存 checkpoint</button>
-        <button id="restoreLatestBtn" class="secondary">恢复最新状态</button>
-        <button id="refreshBtn" class="secondary">刷新</button>
-        <button id="openPreviewBtn" class="secondary">单独页面</button>
+      <div class="hero-actions toolbar-grid">
+        <button id="saveCheckpointBtn">保存</button>
+        <button id="restoreLatestBtn" class="secondary">恢复</button>
+        <button id="exportBtn" class="secondary">导出</button>
+        <button id="importBtn" class="secondary">导入</button>
+        <button id="refreshBtn" class="ghost">刷新</button>
+        <button id="openPreviewBtn" class="ghost">单独页面</button>
       </div>
-    </header>
+      <input id="importFileInput" type="file" accept="application/json,.json" hidden />
+    </section>
 
-    <section class="summary">
-      <div class="summary-card">
-        <span class="summary-label">快照</span>
+    <section class="summary-grid">
+      <article class="summary-card accent">
+        <span class="summary-label">快照时间</span>
         <strong id="snapshotTime">—</strong>
-      </div>
-      <div class="summary-card">
-        <span class="summary-label">窗口</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">窗口数</span>
         <strong id="windowCount">0</strong>
-      </div>
-      <div class="summary-card">
-        <span class="summary-label">页签</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">页签数</span>
         <strong id="tabCount">0</strong>
-      </div>
+      </article>
     </section>
 
-    <section class="panel">
-      <div id="status" class="status">正在加载预览…</div>
-      <div id="previewList" class="preview-list hidden"></div>
+    <section class="panel preview-panel">
+      <div class="status-banner" id="status">正在加载预览…</div>
+      <div class="preview-list hidden" id="previewList"></div>
     </section>
-
   </main>
 
   <script src="ui-shared.js"></script>

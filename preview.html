@@ -4,148 +4,97 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恢复预览 - Edge History Recovery</title>
+  <link rel="stylesheet" href="popup.css" />
   <style>
-    :root {
-      color-scheme: light dark;
-      --bg: #111827;
-      --panel: #1f2937;
-      --panel-2: #111827;
-      --text: #f9fafb;
-      --muted: #9ca3af;
-      --line: rgba(255,255,255,0.08);
-      --accent: #60a5fa;
-      --accent-2: #2563eb;
-      --danger: #ef4444;
+    body {
+      width: auto;
+      min-height: 100vh;
     }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f3f4f6;
-        --panel: #ffffff;
-        --panel-2: #f9fafb;
-        --text: #111827;
-        --muted: #6b7280;
-        --line: rgba(17,24,39,0.08);
-        --accent: #2563eb;
-        --accent-2: #1d4ed8;
+    .page-shell {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .page-topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .page-topbar h1 {
+      margin: 8px 0 6px;
+      font-size: 30px;
+      line-height: 1.1;
+    }
+    .page-topbar .sub {
+      color: var(--muted);
+      margin: 0;
+    }
+    .page-toolbar {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      min-width: min(100%, 560px);
+    }
+    .page-toolbar button {
+      width: 100%;
+    }
+    .page-panel {
+      overflow: hidden;
+    }
+    .page-panel .inline-toolbar {
+      display: none;
+    }
+    @media (max-width: 780px) {
+      .page-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 100%;
       }
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-    .page { max-width: 980px; margin: 0 auto; padding: 24px; }
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
-    }
-    h1 { margin: 0; font-size: 22px; }
-    .sub { color: var(--muted); margin-top: 4px; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    button {
-      border: 0; border-radius: 10px; padding: 10px 14px; font: inherit;
-      cursor: pointer; background: var(--accent); color: white;
-    }
-    button.secondary {
-      background: var(--panel); color: var(--text); border: 1px solid var(--line);
-    }
-    button:hover { background: var(--accent-2); }
-    button.secondary:hover { background: var(--panel-2); }
-    .panel {
-      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-      overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-    }
-    .inline-toolbar {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .inline-toolbar button.secondary {
-      background: var(--panel-2);
-    }
-    .meta {
-      padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--muted);
-      display: flex; gap: 16px; flex-wrap: wrap;
-    }
-    .window-selector {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .selector-label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .window-select, select {
-      width: 100%;
-      max-width: 360px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      background: var(--panel-2);
-      color: var(--text);
-      padding: 8px 10px;
-      font: inherit;
-    }
-    .window { border-top: 1px solid var(--line); }
-    .window:first-child { border-top: 0; }
-    .window-head {
-      padding: 14px 16px; background: var(--panel-2); display: flex;
-      justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
-    }
-    .window-title { font-weight: 700; }
-    .window-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-    .tabs { padding: 8px 0; }
-    .tab {
-      display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start;
-      padding: 10px 16px; color: inherit;
-    }
-    .tab:hover { background: rgba(96,165,250,0.08); }
-    .tab-empty { padding: 14px 16px; color: var(--muted); }
-    .icon {
-      width: 18px; height: 18px; margin-top: 2px; border-radius: 4px;
-      background: rgba(127,127,127,0.18); object-fit: cover;
-    }
-    .fallback-icon {
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 11px; font-weight: 700; color: var(--muted);
-    }
-    .title { font-weight: 600; word-break: break-word; }
-    .url { color: var(--muted); font-size: 12px; word-break: break-all; margin-top: 2px; }
-    .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .badge {
-      padding: 2px 8px; border-radius: 999px; font-size: 11px;
-      background: rgba(96,165,250,0.12); color: var(--accent);
-      border: 1px solid rgba(96,165,250,0.22);
-    }
-    .empty, .error, .loading { padding: 40px 18px; text-align: center; color: var(--muted); }
-    .error { color: var(--danger); }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="topbar">
-      <div>
-        <h1>恢复预览</h1>
-        <div class="sub" id="subtitle">查看最近一次快照将恢复哪些窗口和页签</div>
+  <main class="page-shell">
+    <section class="hero-card">
+      <div class="page-topbar">
+        <div>
+          <span class="eyebrow">Edge History Recovery</span>
+          <h1>恢复预览</h1>
+          <p class="sub" id="subtitle">查看最近一次 checkpoint 将恢复哪些窗口和页签</p>
+        </div>
+        <div class="page-toolbar">
+          <button id="saveCheckpointBtn">保存</button>
+          <button id="restoreLatestBtn" class="secondary">恢复</button>
+          <button id="exportBtn" class="secondary">导出</button>
+          <button id="importBtn" class="secondary">导入</button>
+          <button id="refreshBtn" class="ghost">刷新</button>
+        </div>
+        <input id="importFileInput" type="file" accept="application/json,.json" hidden />
       </div>
-      <div class="actions">
-        <button id="saveCheckpointBtn">保存 checkpoint</button>
-        <button class="secondary" id="restoreLatestBtn">恢复最新状态</button>
-        <button class="secondary" id="refreshBtn">刷新</button>
-        <button class="secondary" id="openPopupBtn">关闭</button>
-      </div>
-    </div>
+    </section>
 
-    <div class="panel" id="panel">
-      <div class="loading" id="state">正在加载预览…</div>
-    </div>
-  </div>
+    <section class="summary-grid" style="margin: 16px 0;">
+      <article class="summary-card accent">
+        <span class="summary-label">快照时间</span>
+        <strong id="snapshotTime">—</strong>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">窗口数</span>
+        <strong id="windowCount">0</strong>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">页签数</span>
+        <strong id="tabCount">0</strong>
+      </article>
+    </section>
+
+    <section class="panel preview-panel page-panel">
+      <div class="status-banner" id="status">正在加载预览…</div>
+      <div class="preview-list" id="panel"></div>
+    </section>
+  </main>
 
   <script src="ui-shared.js"></script>
   <script src="preview.js"></script>

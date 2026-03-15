@@ -143,6 +143,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'exportLatestCheckpoint') {
+    void exportLatestCheckpoint()
+      .then((payload) => sendResponse({ ok: true, payload }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === 'importCheckpointFile') {
+    void importCheckpointFile(message.payload)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   return false;
 });
 
@@ -320,6 +334,66 @@ async function getStatus() {
     eventCount,
     liveState: stateCache ? summarizeState(stateCache) : null
   };
+}
+
+async function exportLatestCheckpoint() {
+  await bootstrap();
+  await flushEvents();
+
+  const checkpoints = await listCheckpoints();
+  const latest = checkpoints[0] || null;
+  if (!latest?.id) {
+    throw new Error('没有可导出的 checkpoint');
+  }
+
+  const full = await getCheckpointById(latest.id);
+  if (!full?.state) {
+    throw new Error('checkpoint 数据不完整，无法导出');
+  }
+
+  return {
+    format: 'edge-history-recovery-checkpoint',
+    version: 1,
+    exportedAt: Date.now(),
+    checkpoint: {
+      id: full.id,
+      reason: full.reason || 'manual',
+      createdAt: full.createdAt,
+      state: cloneState(full.state)
+    }
+  };
+}
+
+async function importCheckpointFile(payload) {
+  await bootstrap();
+
+  if (!payload || payload.format !== 'edge-history-recovery-checkpoint' || payload.version !== 1) {
+    throw new Error('导入文件格式不正确');
+  }
+
+  const imported = payload.checkpoint;
+  if (!imported?.state || !Array.isArray(imported.state.windows)) {
+    throw new Error('导入文件缺少有效 checkpoint 数据');
+  }
+
+  const checkpoint = {
+    id: crypto.randomUUID(),
+    reason: imported.reason || 'imported',
+    createdAt: Date.now(),
+    state: finalizeState(cloneState(imported.state))
+  };
+
+  const db = await ensureDb();
+  await withTransaction(db, [CHECKPOINT_STORE, META_STORE], 'readwrite', async (tx) => {
+    const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
+    const metaStore = tx.objectStore(META_STORE);
+    await idbPut(checkpointStore, checkpoint);
+    await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
+    await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
+    await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
+  });
+
+  return summarizeCheckpoint(checkpoint);
 }
 
 async function countEvents() {
