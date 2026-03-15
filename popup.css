@@ -1,16 +1,17 @@
 :root {
-  color-scheme: light dark;
-  --bg: #f5f6f8;
+  color-scheme: light;
+  --bg: #ffffff;
   --panel: #ffffff;
-  --text: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --accent: #2563eb;
-  --accent-soft: #dbeafe;
-  --chip: #f3f4f6;
-  --chip-active: #111827;
+  --panel-soft: #fafafa;
+  --text: #111111;
+  --muted: #70757a;
+  --line: #ececec;
+  --accent: #111111;
+  --accent-soft: #f5f5f5;
+  --chip: #f5f5f5;
+  --chip-active: #111111;
   --chip-active-text: #ffffff;
-  --shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  --shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
 }
 
 * { box-sizing: border-box; }
@@ -49,12 +50,12 @@ button {
 .window-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
 }
 
 .topbar-card {
-  padding: 12px;
+  padding: 10px 12px;
   margin-bottom: 12px;
 }
 
@@ -70,15 +71,15 @@ button {
 }
 
 .topbar-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .topbar-subtitle {
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -106,7 +107,7 @@ button {
 
 .icon-btn.flat:hover,
 .icon-btn.flat:focus-visible {
-  background: #f3f4f6;
+  background: var(--chip);
   outline: none;
 }
 
@@ -165,18 +166,18 @@ button {
 }
 
 .status-banner {
-  margin: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  margin: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: var(--accent-soft);
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  color: var(--muted);
+  border: 1px solid var(--line);
 }
 
 .status-banner.error {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-color: #fecaca;
+  background: #fff5f5;
+  color: #b42318;
+  border-color: #f2d6d6;
 }
 
 .hidden { display: none; }
@@ -184,7 +185,7 @@ button {
 .preview-list {
   max-height: 520px;
   overflow: auto;
-  padding: 10px;
+  padding: 8px;
 }
 
 .page-panel .preview-list {
@@ -195,14 +196,14 @@ button {
   display: flex;
   gap: 8px;
   overflow: auto;
-  padding-bottom: 8px;
-  margin-bottom: 10px;
+  padding: 2px 2px 8px;
+  margin-bottom: 8px;
 }
 
 .window-pill {
   flex: 0 0 auto;
-  padding: 8px 12px;
-  border: 0;
+  padding: 7px 12px;
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--chip);
   color: var(--text);
@@ -224,9 +225,9 @@ button {
 }
 
 .window-head {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
-  background: #fafafa;
+  background: var(--panel-soft);
 }
 
 .window-title {
@@ -241,19 +242,19 @@ button {
 }
 
 .tabs-wrap {
-  padding: 6px;
+  padding: 4px;
 }
 
 .tab-card {
   display: grid;
   grid-template-columns: 18px 1fr;
   gap: 10px;
-  padding: 10px;
+  padding: 9px 10px;
   border-radius: 12px;
 }
 
 .tab-card:hover {
-  background: #f9fafb;
+  background: #fafafa;
 }
 
 .tab-card:hover .url,
