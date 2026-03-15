@@ -114,20 +114,6 @@ function renderPreview(preview, { successMessage = '' } = {}) {
   panelEl.innerHTML = `
     ${previewUI.renderToolbar({ showOpenPreview: false, compact: true })}
     ${previewUI.renderWindowSelector(windows, selectedWindowId)}
-    <div class="window-card" style="margin-bottom: 12px;">
-      <div class="window-head">
-        <div>
-          <div class="window-title">快照信息</div>
-          <div class="window-sub">恢复前先确认这次导入/保存的 checkpoint 内容</div>
-        </div>
-      </div>
-      <div class="tabs-wrap">
-        <div class="tab-card"><div class="tab-main"><div class="title">快照 ID</div><div class="url">${previewUI.escapeHtml(checkpoint.id || '未知')}</div></div></div>
-        <div class="tab-card"><div class="tab-main"><div class="title">记录时间</div><div class="url">${previewUI.escapeHtml(previewUI.formatTime(checkpoint.createdAt, '未知时间'))}</div></div></div>
-        <div class="tab-card"><div class="tab-main"><div class="title">来源</div><div class="url">${previewUI.escapeHtml(preview?.source || 'checkpoint')}</div></div></div>
-        <div class="tab-card"><div class="tab-main"><div class="title">窗口 / 页签</div><div class="url">${state?.windowCount ?? windows.length} 个窗口 · ${state?.tabCount ?? previewUI.countTabs(windows)} 个页签，当前预览 ${selectedWindows.length} 个窗口 / ${selectedTabCount} 个页签</div></div></div>
-      </div>
-    </div>
     ${selectedWindows.map((win, index) => previewUI.renderWindowCard(win, index)).join('')}
   `;
 
