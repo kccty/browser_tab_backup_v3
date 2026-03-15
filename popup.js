@@ -1,10 +1,4 @@
-const {
-  formatTime,
-  renderWindowSelector,
-  renderWindowCard,
-  getSelectedWindows,
-  countTabs
-} = window.EdgeRecoveryUI;
+const popupUI = window.EdgeRecoveryUI;
 
 const subtitleEl = document.getElementById('subtitle');
 const statusEl = document.getElementById('status');
@@ -51,9 +45,9 @@ saveCheckpointBtn.addEventListener('click', async () => {
 });
 
 function setSummary(checkpoint, windows) {
-  snapshotTimeEl.textContent = formatTime(checkpoint?.createdAt, '—');
+  snapshotTimeEl.textContent = popupUI.formatTime(checkpoint?.createdAt, '—');
   windowCountEl.textContent = String(windows.length);
-  tabCountEl.textContent = String(countTabs(windows));
+  tabCountEl.textContent = String(popupUI.countTabs(windows));
 }
 
 function showStatus(text) {
@@ -77,7 +71,7 @@ function renderPreview(preview, { successMessage = '' } = {}) {
   const windows = Array.isArray(preview?.windows) ? preview.windows : [];
 
   subtitleEl.textContent = checkpoint
-    ? `快照时间：${formatTime(checkpoint.createdAt, '未知时间')} · 共 ${windows.length} 个窗口`
+    ? `快照时间：${popupUI.formatTime(checkpoint.createdAt, '未知时间')} · 共 ${windows.length} 个窗口`
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
@@ -86,13 +80,13 @@ function renderPreview(preview, { successMessage = '' } = {}) {
     return;
   }
 
-  const selectedWindows = getSelectedWindows(windows, selectedWindowId);
+  const selectedWindows = popupUI.getSelectedWindows(windows, selectedWindowId);
   if (!selectedWindowId && selectedWindows[0]) {
     selectedWindowId = selectedWindows[0].id;
   }
 
   setSummary(checkpoint, selectedWindows);
-  previewListEl.innerHTML = `${renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(renderWindowCard).join('')}`;
+  previewListEl.innerHTML = `${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(popupUI.renderWindowCard).join('')}`;
   previewListEl.classList.remove('hidden');
   statusEl.classList.add('hidden');
   bindWindowSelector(windows);
