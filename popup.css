@@ -23,7 +23,7 @@ body {
 }
 
 .popup-body {
-  width: 630px;
+  width: 945px;
   min-height: 820px;
 }
 
@@ -36,7 +36,7 @@ button {
 }
 
 .popup-shell {
-  width: 630px;
+  width: 945px;
   min-height: 820px;
   padding: 12px;
 }
@@ -73,9 +73,9 @@ button {
 }
 
 .topbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 32px;
 }
 
 .topbar-subtitle {
@@ -184,13 +184,18 @@ button {
 .hidden { display: none; }
 
 .preview-list {
-  max-height: 1040px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 8px;
 }
 
 .page-panel .preview-list {
   max-height: none;
+}
+
+.window-card {
+  display: flex;
+  flex-direction: column;
 }
 
 .window-switcher {
@@ -242,7 +247,25 @@ button {
 }
 
 .tabs-wrap {
+  max-height: 620px;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #cfcfcf transparent;
+}
+
+.tabs-wrap::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tabs-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs-wrap::-webkit-scrollbar-thumb {
+  background: #cfcfcf;
+  border-radius: 999px;
 }
 
 .tab-card {
