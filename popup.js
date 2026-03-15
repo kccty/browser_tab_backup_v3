@@ -11,7 +11,7 @@ let lastStatusText = '正在加载预览…';
 
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
-  const subtitle = checkpoint ? `最近一次保存：${popupUI.formatTime(checkpoint.createdAt, '未知时间')}` : '还没有可用 checkpoint';
+  const subtitle = checkpoint ? popupUI.formatTime(checkpoint.createdAt, '未知时间') : '还没有可用 checkpoint';
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '页签恢复',
     subtitle,

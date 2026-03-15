@@ -31,9 +31,8 @@ function renderBadges(tab) {
   return badges.join('');
 }
 
-function getWindowLabel(win, index) {
-  const tabs = Array.isArray(win?.tabs) ? win.tabs : [];
-  return `窗口${index + 1}` + (tabs.length ? ` · ${tabs.length}` : '');
+function getWindowLabel(_win, index) {
+  return `窗口${index + 1}`;
 }
 
 function getSelectedWindows(windows, selectedWindowId) {
@@ -105,13 +104,7 @@ function renderWindowSelector(windows, selectedWindowId) {
 function renderWindowCard(win, index) {
   const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
   return `
-    <section class="window-card">
-      <div class="window-head">
-        <div>
-          <div class="window-title">窗口${index + 1}</div>
-          <div class="window-sub">${tabs.length} 个页签${win.state ? ` · ${escapeHtml(win.state)}` : ''}</div>
-        </div>
-      </div>
+    <section class="window-card" aria-label="窗口${index + 1}">
       <div class="tabs-wrap">
         ${tabs.map((tab) => `
           <div class="tab-card" title="${escapeHtml(tab.url || tab.pendingUrl || '')}">

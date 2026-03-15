@@ -88,7 +88,7 @@ button {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
@@ -195,8 +195,8 @@ button {
   display: flex;
   gap: 8px;
   overflow: auto;
-  padding: 2px 2px 8px;
-  margin-bottom: 8px;
+  padding: 2px 2px 4px;
+  margin-bottom: 4px;
 }
 
 .window-pill {
@@ -221,36 +221,19 @@ button {
 }
 
 .window-card + .window-card {
-  margin-top: 10px;
-}
-
-.window-head {
-  padding: 8px 10px;
-  border-bottom: 0;
-  background: transparent;
-}
-
-.window-title {
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.window-sub {
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 3px;
+  margin-top: 6px;
 }
 
 .tabs-wrap {
-  padding: 4px;
+  padding: 0;
 }
 
 .tab-card {
   display: grid;
   grid-template-columns: 18px 1fr;
   gap: 10px;
-  padding: 9px 10px;
-  border-radius: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
 }
 
 .tab-card:hover,
@@ -282,7 +265,9 @@ button {
   font-weight: 400;
   font-size: 13px;
   line-height: 1.45;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badges {

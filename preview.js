@@ -11,7 +11,7 @@ let lastMessage = '';
 
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
-  const subtitle = checkpoint ? `最近一次保存：${previewUI.formatTime(checkpoint.createdAt, '未知时间')}` : '还没有可用 checkpoint';
+  const subtitle = checkpoint ? previewUI.formatTime(checkpoint.createdAt, '未知时间') : '还没有可用 checkpoint';
   topbarMount.innerHTML = previewUI.renderTopbar({
     title: '恢复预览',
     subtitle,
