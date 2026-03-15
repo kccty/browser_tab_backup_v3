@@ -2,6 +2,7 @@ const list = document.getElementById('snapshot-list');
 const template = document.getElementById('snapshot-template');
 const refreshButton = document.getElementById('refresh');
 const restoreLatestButton = document.getElementById('restore-latest');
+const captureCheckpointButton = document.getElementById('capture-checkpoint');
 
 async function loadCheckpoints() {
   list.innerHTML = '<p>加载中…</p>';
@@ -34,6 +35,20 @@ async function loadCheckpoints() {
     list.appendChild(node);
   }
 }
+
+captureCheckpointButton.addEventListener('click', async () => {
+  captureCheckpointButton.disabled = true;
+  captureCheckpointButton.textContent = '保存中…';
+  const result = await chrome.runtime.sendMessage({ type: 'captureCheckpoint' });
+  if (!result?.ok) {
+    alert(`保存失败：${result?.error || '未知错误'}`);
+  } else {
+    alert('checkpoint 已保存。');
+    await loadCheckpoints();
+  }
+  captureCheckpointButton.disabled = false;
+  captureCheckpointButton.textContent = '手动保存 checkpoint';
+});
 
 restoreLatestButton.addEventListener('click', async () => {
   restoreLatestButton.disabled = true;

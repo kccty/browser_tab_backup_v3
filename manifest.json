@@ -24,7 +24,8 @@
     {
       "resources": [
         "preview.html",
-        "preview.js"
+        "preview.js",
+        "ui-shared.js"
       ],
       "matches": [
         "<all_urls>"

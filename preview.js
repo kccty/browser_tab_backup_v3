@@ -1,3 +1,12 @@
+const {
+  escapeHtml,
+  formatTime,
+  renderWindowSelector,
+  renderWindowCard,
+  getSelectedWindows,
+  countTabs
+} = window.EdgeRecoveryUI;
+
 const subtitleEl = document.getElementById('subtitle');
 const panelEl = document.getElementById('panel');
 const refreshBtn = document.getElementById('refreshBtn');
@@ -13,94 +22,6 @@ openOptionsBtn.addEventListener('click', async () => {
   }
 });
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[char]));
-}
-
-function formatTime(value) {
-  if (!value) return '未知时间';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '未知时间';
-  return date.toLocaleString();
-}
-
-function tabBadges(tab) {
-  const badges = [];
-  if (tab.active) badges.push('<span class="badge">当前激活</span>');
-  if (tab.pinned) badges.push('<span class="badge">已固定</span>');
-  if (tab.groupId >= 0) badges.push(`<span class="badge">分组 ${tab.groupId}</span>`);
-  return badges.join('');
-}
-
-function renderFavicon(tab) {
-  const url = tab.favIconUrl ? escapeHtml(tab.favIconUrl) : '';
-  if (url) {
-    return `<img class="icon" src="${url}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=\\'icon fallback-icon\\'>🌐</span>'">`;
-  }
-  return '<span class="icon fallback-icon">🌐</span>';
-}
-
-function getSelectedWindows(windows) {
-  if (!Array.isArray(windows) || !windows.length) return [];
-  if (!selectedWindowId) return [windows[0]];
-  const selected = windows.find((win) => String(win.id) === String(selectedWindowId));
-  return selected ? [selected] : [windows[0]];
-}
-
-function renderWindowSelector(windows) {
-  if (!Array.isArray(windows) || !windows.length) return '';
-  const selected = selectedWindowId ?? windows[0].id;
-  return `
-    <div class="meta selector-bar">
-      <div>快照 ID：${escapeHtml(currentPreview?.checkpoint?.id || '未知')}</div>
-      <div>记录时间：${escapeHtml(formatTime(currentPreview?.checkpoint?.createdAt))}</div>
-      <div>窗口总数：${windows.length}</div>
-      <div>
-        <label for="windowSelect">预览窗口：</label>
-        <select id="windowSelect">
-          ${windows.map((win, index) => `
-            <option value="${escapeHtml(win.id)}" ${String(win.id) === String(selected) ? 'selected' : ''}>
-              窗口 ${index + 1} · ${(win.tabs || []).length} 个页签
-            </option>
-          `).join('')}
-        </select>
-      </div>
-    </div>
-  `;
-}
-
-function renderWindow(win, index) {
-  const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
-  return `
-    <section class="window">
-      <div class="window-head">
-        <div>
-          <div class="window-title">窗口 ${index + 1}</div>
-          <div class="window-sub">${tabs.length} 个页签${win.state ? ` · 状态 ${escapeHtml(win.state)}` : ''}${win.type ? ` · 类型 ${escapeHtml(win.type)}` : ''}</div>
-        </div>
-      </div>
-      <div class="tabs">
-        ${tabs.map((tab) => `
-          <div class="tab">
-            ${renderFavicon(tab)}
-            <div>
-              <div class="title">${escapeHtml(tab.title || tab.url || '未命名标签页')}</div>
-              <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
-              <div class="badge-row">${tabBadges(tab)}</div>
-            </div>
-          </div>
-        `).join('') || '<div class="empty">这个窗口没有可恢复的页签</div>'}
-      </div>
-    </section>
-  `;
-}
-
 function bindWindowSelector(windows) {
   const select = document.getElementById('windowSelect');
   if (!select) return;
@@ -113,9 +34,11 @@ function bindWindowSelector(windows) {
 function renderPreview(preview) {
   currentPreview = preview;
   const checkpoint = preview?.checkpoint || null;
+  const state = preview?.state || null;
   const windows = Array.isArray(preview?.windows) ? preview.windows : [];
+
   subtitleEl.textContent = checkpoint
-    ? `快照时间：${formatTime(checkpoint.createdAt)} · 共 ${windows.length} 个窗口`
+    ? `快照时间：${formatTime(checkpoint.createdAt, '未知时间')} · 共 ${windows.length} 个窗口`
     : '没有可用快照';
 
   if (!checkpoint || windows.length === 0) {
@@ -123,20 +46,28 @@ function renderPreview(preview) {
     return;
   }
 
-  const selectedWindows = getSelectedWindows(windows);
+  const selectedWindows = getSelectedWindows(windows, selectedWindowId);
   if (!selectedWindowId && selectedWindows[0]) {
     selectedWindowId = selectedWindows[0].id;
   }
-  const totalTabs = selectedWindows.reduce((sum, win) => sum + ((win.tabs || []).length), 0);
+  const selectedTabCount = countTabs(selectedWindows);
 
   panelEl.innerHTML = `
-    ${renderWindowSelector(windows)}
     <div class="meta">
-      <div>当前预览窗口：${selectedWindows.length}</div>
-      <div>当前预览页签：${totalTabs}</div>
+      <div>快照 ID：${escapeHtml(checkpoint.id || '未知')}</div>
+      <div>记录时间：${escapeHtml(formatTime(checkpoint.createdAt, '未知时间'))}</div>
+      <div>来源：${escapeHtml(preview?.source || 'checkpoint')}</div>
     </div>
-    ${selectedWindows.map(renderWindow).join('')}
+    ${renderWindowSelector(windows, selectedWindowId)}
+    <div class="meta">
+      <div>窗口总数：${state?.windowCount ?? windows.length}</div>
+      <div>页签总数：${state?.tabCount ?? countTabs(windows)}</div>
+      <div>当前预览窗口：${selectedWindows.length}</div>
+      <div>当前预览页签：${selectedTabCount}</div>
+    </div>
+    ${selectedWindows.map(renderWindowCard).join('')}
   `;
+
   bindWindowSelector(windows);
 }
 

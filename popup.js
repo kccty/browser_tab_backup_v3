@@ -1,9 +1,19 @@
+const {
+  formatTime,
+  renderWindowSelector,
+  renderWindowCard,
+  getSelectedWindows,
+  countTabs
+} = window.EdgeRecoveryUI;
+
+const subtitleEl = document.getElementById('subtitle');
 const statusEl = document.getElementById('status');
 const previewListEl = document.getElementById('previewList');
 const snapshotTimeEl = document.getElementById('snapshotTime');
 const windowCountEl = document.getElementById('windowCount');
 const tabCountEl = document.getElementById('tabCount');
 
+const saveCheckpointBtn = document.getElementById('saveCheckpointBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const openPreviewBtn = document.getElementById('openPreviewBtn');
 const openOptionsBtn = document.getElementById('openOptionsBtn');
@@ -19,89 +29,31 @@ openOptionsBtn.addEventListener('click', async () => {
   }
 });
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[char]));
-}
+saveCheckpointBtn.addEventListener('click', async () => {
+  saveCheckpointBtn.disabled = true;
+  const previousText = saveCheckpointBtn.textContent;
+  saveCheckpointBtn.textContent = '保存中…';
+  showStatus('正在保存 checkpoint…');
 
-function formatTime(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString();
-}
-
-function renderFavicon(tab) {
-  const url = tab.favIconUrl ? escapeHtml(tab.favIconUrl) : '';
-  if (url) {
-    return `<img class="icon" src="${url}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=\\'icon fallback-icon\\'>🌐</span>'">`;
+  try {
+    const result = await chrome.runtime.sendMessage({ type: 'captureCheckpoint' });
+    if (!result?.ok) {
+      throw new Error(result?.error || '保存 checkpoint 失败');
+    }
+    selectedWindowId = null;
+    await loadPreview({ successMessage: 'checkpoint 已保存，预览已刷新。' });
+  } catch (error) {
+    showStatus(error?.message || String(error));
+  } finally {
+    saveCheckpointBtn.disabled = false;
+    saveCheckpointBtn.textContent = previousText;
   }
-  return '<span class="icon fallback-icon">🌐</span>';
-}
-
-function renderBadges(tab) {
-  const badges = [];
-  if (tab.active) badges.push('<span class="badge">当前激活</span>');
-  if (tab.pinned) badges.push('<span class="badge">已固定</span>');
-  return badges.join('');
-}
-
-function getSelectedWindows(windows) {
-  if (!Array.isArray(windows) || !windows.length) return [];
-  if (!selectedWindowId) return [windows[0]];
-  const selected = windows.find((win) => String(win.id) === String(selectedWindowId));
-  return selected ? [selected] : [windows[0]];
-}
-
-function renderWindowSelector(windows) {
-  if (!Array.isArray(windows) || !windows.length) return '';
-  const selected = selectedWindowId ?? windows[0].id;
-  return `
-    <div class="window-selector">
-      <label class="selector-label" for="windowSelect">预览窗口</label>
-      <select id="windowSelect" class="window-select">
-        ${windows.map((win, index) => `
-          <option value="${escapeHtml(win.id)}" ${String(win.id) === String(selected) ? 'selected' : ''}>
-            窗口 ${index + 1} · ${(win.tabs || []).length} 个页签
-          </option>
-        `).join('')}
-      </select>
-    </div>
-  `;
-}
-
-function renderWindow(win, index) {
-  const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
-  return `
-    <section class="window">
-      <div class="window-head">
-        <div class="window-title">窗口 ${index + 1}</div>
-        <div class="window-sub">${tabs.length} 个页签</div>
-      </div>
-      ${tabs.map((tab) => `
-        <div class="tab">
-          ${renderFavicon(tab)}
-          <div>
-            <div class="title">${escapeHtml(tab.title || tab.url || '未命名标签页')}</div>
-            <div class="url">${escapeHtml(tab.url || tab.pendingUrl || '')}</div>
-            <div class="badges">${renderBadges(tab)}</div>
-          </div>
-        </div>
-      `).join('')}
-    </section>
-  `;
-}
+});
 
 function setSummary(checkpoint, windows) {
-  const tabCount = windows.reduce((sum, win) => sum + ((win.tabs || []).length), 0);
-  snapshotTimeEl.textContent = formatTime(checkpoint?.createdAt);
+  snapshotTimeEl.textContent = formatTime(checkpoint?.createdAt, '—');
   windowCountEl.textContent = String(windows.length);
-  tabCountEl.textContent = String(tabCount);
+  tabCountEl.textContent = String(countTabs(windows));
 }
 
 function showStatus(text) {
@@ -119,41 +71,46 @@ function bindWindowSelector(windows) {
   });
 }
 
-function showPreview(checkpoint, windows) {
-  if (!checkpoint || windows.length === 0) {
-    setSummary(checkpoint, []);
-    showStatus('还没有可预览的快照。先手动保存一次 checkpoint。');
-    return;
-  }
-
-  const selectedWindows = getSelectedWindows(windows);
-  if (!selectedWindowId && selectedWindows[0]) {
-    selectedWindowId = selectedWindows[0].id;
-  }
-  setSummary(checkpoint, selectedWindows);
-
-  previewListEl.innerHTML = `${renderWindowSelector(windows)}${selectedWindows.map(renderWindow).join('')}`;
-  previewListEl.classList.remove('hidden');
-  statusEl.classList.add('hidden');
-  bindWindowSelector(windows);
-}
-
-function renderPreview(preview) {
+function renderPreview(preview, { successMessage = '' } = {}) {
   currentPreview = preview;
   const checkpoint = preview?.checkpoint || null;
   const windows = Array.isArray(preview?.windows) ? preview.windows : [];
-  showPreview(checkpoint, windows);
+
+  subtitleEl.textContent = checkpoint
+    ? `快照时间：${formatTime(checkpoint.createdAt, '未知时间')} · 共 ${windows.length} 个窗口`
+    : '没有可用快照';
+
+  if (!checkpoint || windows.length === 0) {
+    setSummary(checkpoint, []);
+    showStatus(successMessage || '还没有可预览的快照。先手动保存一次 checkpoint。');
+    return;
+  }
+
+  const selectedWindows = getSelectedWindows(windows, selectedWindowId);
+  if (!selectedWindowId && selectedWindows[0]) {
+    selectedWindowId = selectedWindows[0].id;
+  }
+
+  setSummary(checkpoint, selectedWindows);
+  previewListEl.innerHTML = `${renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(renderWindowCard).join('')}`;
+  previewListEl.classList.remove('hidden');
+  statusEl.classList.add('hidden');
+  bindWindowSelector(windows);
+
+  if (successMessage) {
+    statusEl.textContent = successMessage;
+  }
 }
 
-async function loadPreview() {
-  showStatus('正在加载预览…');
+async function loadPreview(options = {}) {
+  showStatus(options.successMessage || '正在加载预览…');
   try {
     const preview = await chrome.runtime.sendMessage({ type: 'get-latest-preview' });
     if (!preview || preview.error) {
       showStatus(preview?.error || '读取预览失败');
       return;
     }
-    renderPreview(preview);
+    renderPreview(preview, options);
   } catch (error) {
     showStatus(error?.message || String(error));
   }

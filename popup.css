@@ -113,6 +113,11 @@ button.secondary:hover { background: var(--panel-2); }
   padding: 10px 12px;
 }
 .tab:hover { background: rgba(96,165,250,0.08); }
+.tab-empty {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
 .icon {
   width: 16px;
   height: 16px;

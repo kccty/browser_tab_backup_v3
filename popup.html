@@ -11,9 +11,10 @@
     <header class="hero">
       <div>
         <h1>Edge History Recovery</h1>
-        <p class="muted">预览最近一次快照将恢复哪些窗口和页签</p>
+        <p class="muted" id="subtitle">预览最近一次快照将恢复哪些窗口和页签</p>
       </div>
       <div class="hero-actions">
+        <button id="saveCheckpointBtn">保存 checkpoint</button>
         <button id="refreshBtn" class="secondary">刷新</button>
         <button id="openPreviewBtn" class="secondary">单独页面</button>
       </div>
@@ -44,6 +45,7 @@
     </footer>
   </main>
 
+  <script src="ui-shared.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

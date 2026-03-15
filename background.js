@@ -257,6 +257,7 @@ async function trimCheckpoints(checkpointStore, maxCheckpoints) {
 
 function clonePreviewTab(tab = {}) {
   return {
+    id: tab.id ?? null,
     index: typeof tab.index === 'number' ? tab.index : 0,
     title: tab.title || tab.pendingUrl || tab.url || '未命名标签页',
     url: tab.url || tab.pendingUrl || '',
@@ -268,32 +269,43 @@ function clonePreviewTab(tab = {}) {
   };
 }
 
-function buildCheckpointPreview(checkpoint) {
-  if (!checkpoint || !Array.isArray(checkpoint.windows)) {
-    return { checkpoint: checkpoint || null, windows: [] };
-  }
-
+function clonePreviewWindow(win = {}) {
   return {
-    checkpoint,
-    windows: checkpoint.windows.map((win = {}) => ({
-      id: win.id ?? null,
-      type: win.type || 'normal',
-      state: win.state || 'normal',
-      focused: Boolean(win.focused),
-      tabs: Array.isArray(win.tabs) ? win.tabs.map(clonePreviewTab) : []
-    }))
+    id: win.id ?? null,
+    type: win.type || 'normal',
+    state: win.state || 'normal',
+    focused: Boolean(win.focused),
+    tabs: Array.isArray(win.tabs) ? win.tabs.map(clonePreviewTab).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : []
+  };
+}
+
+function buildPreviewPayload({ checkpoint, state, source = 'checkpoint' } = {}) {
+  const windows = Array.isArray(state?.windows) ? state.windows.map(clonePreviewWindow) : [];
+  return {
+    source,
+    checkpoint: checkpoint || null,
+    state: state ? summarizeState(state) : null,
+    windows
   };
 }
 
 async function getLatestPreview() {
+  await bootstrap();
+  await flushEvents();
+
   const checkpoints = await listCheckpoints();
   const latest = checkpoints[0] || null;
-  if (!latest?.id) {
-    return buildCheckpointPreview(null);
+  const previewState = await rebuildLatestState();
+
+  if (!latest?.id && !previewState?.windows?.length) {
+    return buildPreviewPayload({ checkpoint: null, state: null, source: 'empty' });
   }
 
-  const checkpoint = await getCheckpointById(latest.id);
-  return buildCheckpointPreview(checkpoint);
+  return buildPreviewPayload({
+    checkpoint: latest,
+    state: previewState,
+    source: latest?.id ? 'latest-state' : 'event-log'
+  });
 }
 
 async function getStatus() {
