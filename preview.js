@@ -97,9 +97,6 @@ function renderPreview(preview, { successMessage = '' } = {}) {
   if (!selectedWindowId && selectedWindows[0]) {
     selectedWindowId = selectedWindows[0].id;
   }
-  const selectedTabCount = previewUI.countTabs(selectedWindows);
-
-  setSummary(checkpoint, windows, selectedWindows);
   panelEl.innerHTML = `
     ${previewUI.renderToolbar({ showOpenPreview: false, compact: true })}
     ${previewUI.renderWindowSelector(windows, selectedWindowId)}

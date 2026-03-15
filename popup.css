@@ -36,7 +36,6 @@ html {
 }
 body {
   margin: 0;
-  min-width: 620px;
   min-height: 600px;
   background: var(--bg);
   color: var(--text);
@@ -72,11 +71,13 @@ button.ghost {
 
 .popup-shell {
   width: 620px;
-  min-width: 620px;
+  max-width: 620px;
   padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: block;
+}
+
+.popup-shell > * + * {
+  margin-top: 14px;
 }
 
 .hero-card,
@@ -271,12 +272,9 @@ button.ghost {
 }
 
 @media (max-width: 720px) {
-  body {
-    min-width: 0;
-  }
   .popup-shell {
     width: 100%;
-    min-width: 0;
+    max-width: 100%;
   }
   .toolbar-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
