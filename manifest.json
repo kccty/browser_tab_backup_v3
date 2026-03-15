@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Edge Session Recovery",
+  "version": "0.2.0",
+  "description": "Incremental event-log based session capture and manual checkpoint recovery for Microsoft Edge.",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "tabs",
+    "storage",
+    "sessions"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Edge Session Recovery",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

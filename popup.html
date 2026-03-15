@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edge Session Recovery</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>会话恢复</h1>
+      <p id="summary">正在读取状态…</p>
+      <div class="actions actions-stack">
+        <button id="restore-latest">恢复最新状态</button>
+        <button id="capture-checkpoint">保存检查点</button>
+        <button id="open-options">恢复管理</button>
+      </div>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
