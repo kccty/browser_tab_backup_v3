@@ -18,8 +18,9 @@
 html, body {
   margin: 0;
   min-height: 100%;
-  width: 945px;
-  min-width: 945px;
+  width: 450px;
+  min-width: 450px;
+  overflow-x: hidden;
 }
 body {
   background: var(--bg);
@@ -28,10 +29,11 @@ body {
 }
 
 .popup-body {
-  width: 945px !important;
-  min-width: 945px;
+  width: 450px !important;
+  min-width: 450px;
   min-height: 820px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .page-body {
@@ -43,10 +45,11 @@ button {
 }
 
 .popup-shell {
-  width: 945px !important;
-  min-width: 945px;
+  width: 450px !important;
+  min-width: 450px;
   min-height: 820px;
-  padding: 12px;
+  padding: 4px 6px 6px;
+  overflow-x: hidden;
 }
 
 .page-shell {
@@ -65,31 +68,39 @@ button {
 }
 
 .topbar-card {
-  padding: 8px 10px;
-  margin-bottom: 10px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
 }
 
 .topbar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  min-height: 32px;
 }
 
 .topbar-copy {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
 }
 
 .topbar-title {
   font-size: 12px;
   font-weight: 500;
   line-height: 32px;
+  height: 32px;
 }
 
 .topbar-subtitle {
-  margin-top: 2px;
+  margin-top: 0;
   color: var(--muted);
   font-size: 11px;
+  line-height: 32px;
+  height: 32px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -176,8 +187,8 @@ button {
 }
 
 .status-banner {
-  margin: 8px;
-  padding: 8px 10px;
+  margin: 0 0 4px;
+  padding: 4px 6px;
   border-radius: 0;
   background: var(--accent-soft);
   color: var(--muted);
@@ -194,7 +205,7 @@ button {
 .preview-list {
   max-height: none;
   overflow: visible;
-  padding: 8px;
+  padding: 0;
 }
 
 .page-panel .preview-list {
@@ -209,10 +220,11 @@ button {
 .window-switcher {
   display: flex;
   gap: 18px;
-  overflow: auto;
-  padding: 0 2px 6px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #ececec;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 4px;
+  margin-bottom: 2px;
+  border-bottom: 0;
 }
 
 .window-pill {
@@ -235,15 +247,24 @@ button {
   border: 0;
 }
 
-.window-pill.active::after {
+.window-pill::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
-  background: var(--text);
+  height: 3px;
+  background: transparent;
   border-radius: 999px;
+}
+
+.window-pill:hover::after,
+.window-pill:focus-visible::after {
+  background: #d1d5db;
+}
+
+.window-pill.active::after {
+  background: #2563eb;
 }
 
 .window-card {
@@ -257,7 +278,7 @@ button {
 .tabs-wrap {
   max-height: 620px;
   height: 620px;
-  overflow-y: scroll;
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 0;
   scrollbar-width: thin;
