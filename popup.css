@@ -23,7 +23,8 @@ body {
 }
 
 .popup-body {
-  width: 420px;
+  width: 630px;
+  min-height: 820px;
 }
 
 .page-body {
@@ -35,7 +36,8 @@ button {
 }
 
 .popup-shell {
-  width: 420px;
+  width: 630px;
+  min-height: 820px;
   padding: 12px;
 }
 
@@ -182,7 +184,7 @@ button {
 .hidden { display: none; }
 
 .preview-list {
-  max-height: 520px;
+  max-height: 1040px;
   overflow: auto;
   padding: 8px;
 }
@@ -193,27 +195,42 @@ button {
 
 .window-switcher {
   display: flex;
-  gap: 8px;
+  gap: 18px;
   overflow: auto;
-  padding: 2px 2px 4px;
-  margin-bottom: 4px;
+  padding: 0 2px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #ececec;
 }
 
 .window-pill {
+  position: relative;
   flex: 0 0 auto;
-  padding: 0;
+  padding: 0 0 8px;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .window-pill.active {
   background: transparent;
   color: var(--text);
   border: 0;
+}
+
+.window-pill.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--text);
+  border-radius: 999px;
 }
 
 .window-card {
