@@ -17,10 +17,12 @@
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
-  min-height: 100%;
   width: 380px;
   min-width: 380px;
-  overflow-x: hidden;
+  height: 900px;
+  min-height: 900px;
+  max-height: 900px;
+  overflow: hidden;
 }
 body {
   background: var(--bg);
@@ -30,7 +32,9 @@ body {
 
 html.page-no-scroll,
 body.page-no-scroll {
-  height: 100%;
+  height: 900px;
+  min-height: 900px;
+  max-height: 900px;
   overflow: hidden;
 }
 
@@ -53,8 +57,9 @@ button {
 .popup-shell {
   width: 380px !important;
   min-width: 380px;
-  height: 900px;
-  min-height: 900px;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
   padding: 8px;
   overflow: hidden;
   display: flex;
@@ -203,8 +208,9 @@ button {
 }
 
 .preview-panel {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -228,8 +234,9 @@ button {
 
 .preview-list {
   max-height: none;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -244,8 +251,9 @@ button {
 
 .window-card {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: 0;
   flex-direction: column;
 }
 
@@ -317,11 +325,12 @@ button {
 
 .tabs-wrap {
   max-height: none;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  height: auto;
+  height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: 0 10px 8px 14px;
   scrollbar-width: thin;
   scrollbar-color: #cfcfcf transparent;
