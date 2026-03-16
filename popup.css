@@ -269,6 +269,8 @@ button {
   flex: 1 1 auto;
   min-height: 0;
   height: 0;
+  max-height: 100%;
+  overflow: hidden;
   flex-direction: column;
 }
 
@@ -339,10 +341,10 @@ button {
 }
 
 .tabs-wrap {
-  max-height: none;
+  max-height: 100%;
   flex: 1 1 auto;
   min-height: 0;
-  height: 0;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
