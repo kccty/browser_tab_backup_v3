@@ -200,8 +200,20 @@ async function withButtonBusy(button, busyText, fn) {
   }
 }
 
-document.documentElement.classList.add('page-no-scroll');
-document.body.classList.add('page-no-scroll');
+document.documentElement.classList.add('page-no-scroll', 'popup-root');
+document.body.classList.add('page-no-scroll', 'popup-root');
+document.documentElement.style.width = '380px';
+document.documentElement.style.minWidth = '380px';
+document.documentElement.style.height = '900px';
+document.documentElement.style.minHeight = '900px';
+document.documentElement.style.maxHeight = '900px';
+document.documentElement.style.overflow = 'hidden';
+document.body.style.width = '380px';
+document.body.style.minWidth = '380px';
+document.body.style.height = '900px';
+document.body.style.minHeight = '900px';
+document.body.style.maxHeight = '900px';
+document.body.style.overflow = 'hidden';
 
 renderTopbar(null);
 loadPreview();

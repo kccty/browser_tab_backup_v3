@@ -24,6 +24,16 @@ html, body {
   max-height: 900px;
   overflow: hidden;
 }
+
+html.popup-root,
+body.popup-root {
+  width: 380px !important;
+  min-width: 380px !important;
+  height: 900px !important;
+  min-height: 900px !important;
+  max-height: 900px !important;
+  overflow: hidden !important;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -36,6 +46,11 @@ body.page-no-scroll {
   min-height: 900px;
   max-height: 900px;
   overflow: hidden;
+}
+
+html.popup-root.page-no-scroll,
+body.popup-root.page-no-scroll {
+  overflow: hidden !important;
 }
 
 .popup-body {
@@ -57,9 +72,9 @@ button {
 .popup-shell {
   width: 380px !important;
   min-width: 380px;
-  height: 100%;
-  min-height: 100%;
-  max-height: 100%;
+  height: calc(900px - 16px);
+  min-height: calc(900px - 16px);
+  max-height: calc(900px - 16px);
   padding: 8px;
   overflow: hidden;
   display: flex;
