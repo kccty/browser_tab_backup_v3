@@ -230,6 +230,8 @@ button {
   max-height: none;
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   padding: 0;
 }
@@ -242,16 +244,19 @@ button {
 
 .window-card {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
 }
 
 .window-switcher {
   display: flex;
+  flex: 0 0 auto;
   gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 10px 6px 14px;
-  margin-bottom: 4px;
+  padding: 4px 10px 4px 14px;
+  margin-bottom: 2px;
   border-bottom: 0;
 }
 
@@ -260,14 +265,17 @@ button {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 2px 0 6px;
+  min-height: 26px;
+  max-width: 112px;
+  padding: 2px 8px 5px;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: #6b7280;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
@@ -309,10 +317,12 @@ button {
 
 .tabs-wrap {
   max-height: none;
+  flex: 1;
+  min-height: 0;
   height: auto;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 10px 10px 14px;
+  padding: 0 10px 8px 14px;
   scrollbar-width: thin;
   scrollbar-color: #cfcfcf transparent;
 }
@@ -339,7 +349,7 @@ button {
   grid-template-columns: 18px 1fr;
   align-items: start;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: 12px;
 }
 
