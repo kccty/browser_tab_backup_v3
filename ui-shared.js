@@ -106,7 +106,7 @@ function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpoin
               </svg>
             </summary>
             <div class="menu-panel">
-              <button id="checkpointManagerBtn" class="menu-item" type="button">Checkpoint 管理</button>
+              <button id="checkpointManagerBtn" class="menu-item" type="button">管理</button>
               <button id="exportBtn" class="menu-item" type="button">导出</button>
               <button id="importBtn" class="menu-item" type="button">导入</button>
               <button id="refreshBtn" class="menu-item" type="button">刷新</button>
