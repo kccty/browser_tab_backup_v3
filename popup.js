@@ -13,12 +13,13 @@ let lastStatusText = '正在加载预览…';
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
   const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
+  const effectiveCheckpointId = checkpoint?.id || selectedCheckpointId || checkpoints[0]?.id || '';
   const subtitle = checkpoint ? `checkpoint：${popupUI.formatTime(checkpoint.createdAt, '未知时间')}` : '还没有可用 checkpoint';
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '历史记录',
     subtitle,
     checkpoints,
-    currentCheckpointId: checkpoint?.id || selectedCheckpointId || '',
+    currentCheckpointId: effectiveCheckpointId,
     showOpenPreview: false
   });
   bindTopbarActions();
@@ -76,10 +77,13 @@ function bindTopbarActions() {
 
   restoreLatestBtn?.addEventListener('click', async () => {
     await withButtonBusy(restoreLatestBtn, '⏳', async () => {
-      showStatus('正在恢复最新状态…');
-      const result = await chrome.runtime.sendMessage({ type: 'restoreLatestState' });
-      if (!result?.ok) throw new Error(result?.error || '恢复最新状态失败');
-      await loadPreview({ successMessage: '最新状态恢复完成。' });
+      const checkpointId = currentPreview?.checkpoint?.id || selectedCheckpointId;
+      if (!checkpointId) throw new Error('当前没有可恢复的 checkpoint');
+      showStatus('正在恢复当前 checkpoint…');
+      const result = await chrome.runtime.sendMessage({ type: 'restoreCheckpoint', checkpointId });
+      if (!result?.ok) throw new Error(result?.error || '恢复 checkpoint 失败');
+      selectedWindowId = null;
+      await loadPreview({ checkpointId, successMessage: '当前 checkpoint 已恢复。' });
     });
   });
 

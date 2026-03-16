@@ -50,11 +50,12 @@ function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '') {
   if (!Array.isArray(checkpoints) || !checkpoints.length) {
     return '<span class="checkpoint-picker-static">还没有可用 checkpoint</span>';
   }
+  const normalizedCurrent = String(currentCheckpointId || checkpoints[0]?.id || '');
   return `
     <label class="checkpoint-picker-wrap">
       <select id="checkpointSelect" class="checkpoint-select" aria-label="选择 checkpoint">
         ${checkpoints.map((item) => `
-          <option value="${escapeHtml(item.id)}"${String(item.id) === String(currentCheckpointId) ? ' selected' : ''}>
+          <option value="${escapeHtml(item.id)}"${String(item.id) === normalizedCurrent ? ' selected' : ''}>
             ${escapeHtml(formatTime(item.createdAt, '未知时间'))}
           </option>
         `).join('')}
