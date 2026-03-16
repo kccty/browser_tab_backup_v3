@@ -122,8 +122,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'listEvents') {
+    void listEvents(message.checkpointId)
+      .then((events) => sendResponse({ ok: true, events }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'deleteCheckpoint') {
     void deleteCheckpoint(message.checkpointId)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === 'deleteEvent') {
+    void deleteEvent(message.eventId)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -472,11 +486,45 @@ async function listCheckpoints() {
     .map((item) => summarizeCheckpoint(item, { includeState: false }));
 }
 
+async function listEvents(checkpointId = null) {
+  await bootstrap();
+  await flushEvents();
+  const db = await ensureDb();
+  const [events, checkpoints] = await Promise.all([
+    withTransaction(db, [EVENT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(EVENT_STORE))),
+    listCheckpoints()
+  ]);
+
+  const sortedCheckpoints = checkpoints.slice().sort((a, b) => a.createdAt - b.createdAt);
+  let filtered = events.slice();
+
+  if (checkpointId) {
+    const current = sortedCheckpoints.find((item) => String(item.id) === String(checkpointId));
+    if (!current) {
+      throw new Error('checkpoint 不存在');
+    }
+    const next = sortedCheckpoints.find((item) => item.createdAt > current.createdAt);
+    filtered = filtered.filter((event) => event.createdAt >= current.createdAt && (!next || event.createdAt < next.createdAt));
+  }
+
+  return filtered
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((event) => summarizeEvent(event));
+}
+
 async function deleteCheckpoint(checkpointId) {
   const db = await ensureDb();
   return withTransaction(db, [CHECKPOINT_STORE], 'readwrite', async (tx) => {
     await idbDelete(tx.objectStore(CHECKPOINT_STORE), checkpointId);
     return { ok: true, checkpointId };
+  });
+}
+
+async function deleteEvent(eventId) {
+  const db = await ensureDb();
+  return withTransaction(db, [EVENT_STORE], 'readwrite', async (tx) => {
+    await idbDelete(tx.objectStore(EVENT_STORE), eventId);
+    return { ok: true, eventId };
   });
 }
 
@@ -501,6 +549,65 @@ function summarizeCheckpoint(item, { includeState = false } = {}) {
   }
 
   return summary;
+}
+
+function summarizeEvent(event) {
+  return {
+    id: event.id,
+    type: event.type,
+    createdAt: event.createdAt,
+    label: getEventLabel(event),
+    detail: getEventDetail(event)
+  };
+}
+
+function getEventLabel(event) {
+  switch (event?.type) {
+    case 'tab-created': return '新增标签页';
+    case 'tab-removed': return '删除标签页';
+    case 'tab-updated': return '更新标签页';
+    case 'tab-activated': return '切换激活标签页';
+    case 'tab-moved': return '移动标签页';
+    case 'tab-attached': return '标签页移入窗口';
+    case 'tab-detached': return '标签页移出窗口';
+    case 'tab-replaced': return '标签页替换';
+    case 'window-created': return '新增窗口';
+    case 'window-removed': return '删除窗口';
+    case 'window-focus-changed': return '切换窗口焦点';
+    case 'restore-checkpoint': return '恢复 checkpoint';
+    case 'restore-latest-state': return '恢复最新状态';
+    default: return event?.type || '未知事件';
+  }
+}
+
+function getEventDetail(event) {
+  const payload = event?.payload || {};
+  const title = payload?.tab?.title || payload?.tab?.pendingUrl || payload?.tab?.url || '';
+  switch (event?.type) {
+    case 'tab-created':
+    case 'tab-updated':
+      return title || '标签页变更';
+    case 'tab-removed':
+      return payload?.tabId ? `tabId: ${payload.tabId}` : '标签页已删除';
+    case 'tab-activated':
+      return payload?.tabId ? `tabId: ${payload.tabId}` : '激活状态变更';
+    case 'tab-moved':
+      return payload?.tabId ? `tabId: ${payload.tabId} → ${payload.toIndex ?? '?'}` : '标签页位置变化';
+    case 'tab-attached':
+      return payload?.tabId ? `tabId: ${payload.tabId} → 窗口 ${payload.newWindowId ?? '?'}` : '标签页移入窗口';
+    case 'tab-detached':
+      return payload?.tabId ? `tabId: ${payload.tabId} ← 窗口 ${payload.oldWindowId ?? '?'}` : '标签页移出窗口';
+    case 'tab-replaced':
+      return payload?.addedTabId ? `${payload.removedTabId ?? '?'} → ${payload.addedTabId}` : '标签页替换';
+    case 'window-created':
+    case 'window-removed':
+    case 'window-focus-changed':
+      return payload?.windowId ? `windowId: ${payload.windowId}` : '窗口变更';
+    case 'restore-checkpoint':
+      return payload?.checkpointId || '已恢复指定 checkpoint';
+    default:
+      return '';
+  }
 }
 
 function summarizeState(state) {
