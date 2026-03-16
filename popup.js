@@ -7,14 +7,18 @@ const importFileInput = document.getElementById('importFileInput');
 
 let currentPreview = null;
 let selectedWindowId = null;
+let selectedCheckpointId = null;
 let lastStatusText = '正在加载预览…';
 
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
-  const subtitle = checkpoint ? popupUI.formatTime(checkpoint.createdAt, '未知时间') : '还没有可用 checkpoint';
+  const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
+  const subtitle = checkpoint ? `checkpoint：${popupUI.formatTime(checkpoint.createdAt, '未知时间')}` : '还没有可用 checkpoint';
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '历史记录',
     subtitle,
+    checkpoints,
+    currentCheckpointId: checkpoint?.id || selectedCheckpointId || '',
     showOpenPreview: false
   });
   bindTopbarActions();
@@ -22,6 +26,8 @@ function renderTopbar(preview) {
 
 function getButtons() {
   return {
+    deleteCheckpointBtn: document.getElementById('deleteCheckpointBtn'),
+    checkpointSelect: document.getElementById('checkpointSelect'),
     saveCheckpointBtn: document.getElementById('saveCheckpointBtn'),
     restoreLatestBtn: document.getElementById('restoreLatestBtn'),
     exportBtn: document.getElementById('exportBtn'),
@@ -32,19 +38,39 @@ function getButtons() {
 }
 
 function bindTopbarActions() {
-  const { saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn, checkpointManagerBtn } = getButtons();
+  const { deleteCheckpointBtn, checkpointSelect, saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn, checkpointManagerBtn } = getButtons();
 
-  refreshBtn?.addEventListener('click', () => loadPreview());
+  refreshBtn?.addEventListener('click', () => loadPreview({ checkpointId: selectedCheckpointId }));
   importBtn?.addEventListener('click', () => importFileInput.click());
-  checkpointManagerBtn?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('options.html') }));
+  checkpointManagerBtn?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('checkpoints.html') }));
+  checkpointSelect?.addEventListener('change', async () => {
+    selectedCheckpointId = checkpointSelect.value || null;
+    selectedWindowId = null;
+    await loadPreview({ checkpointId: selectedCheckpointId });
+  });
+  deleteCheckpointBtn?.addEventListener('click', async () => {
+    const checkpointId = currentPreview?.checkpoint?.id;
+    if (!checkpointId) return;
+    const confirmed = window.confirm(`确定删除当前 checkpoint？\n\n${checkpointId}`);
+    if (!confirmed) return;
+    await withButtonBusy(deleteCheckpointBtn, '', async () => {
+      showStatus('正在删除 checkpoint…');
+      const result = await chrome.runtime.sendMessage({ type: 'deleteCheckpoint', checkpointId });
+      if (!result?.ok) throw new Error(result?.error || '删除 checkpoint 失败');
+      selectedCheckpointId = null;
+      selectedWindowId = null;
+      await loadPreview({ successMessage: 'checkpoint 已删除。' });
+    });
+  });
 
   saveCheckpointBtn?.addEventListener('click', async () => {
     await withButtonBusy(saveCheckpointBtn, '⏳', async () => {
       showStatus('正在保存 checkpoint…');
       const result = await chrome.runtime.sendMessage({ type: 'captureCheckpoint' });
       if (!result?.ok) throw new Error(result?.error || '保存 checkpoint 失败');
+      selectedCheckpointId = result?.checkpoint?.id || null;
       selectedWindowId = null;
-      await loadPreview({ successMessage: 'checkpoint 已保存。' });
+      await loadPreview({ checkpointId: selectedCheckpointId, successMessage: 'checkpoint 已保存。' });
     });
   });
 
@@ -107,6 +133,7 @@ function bindFaviconFallbacks() {
 
 function renderPreview(preview, { successMessage = '' } = {}) {
   currentPreview = preview;
+  selectedCheckpointId = preview?.checkpoint?.id || selectedCheckpointId || null;
   renderTopbar(preview);
 
   const checkpoint = preview?.checkpoint || null;
@@ -140,10 +167,14 @@ function renderPreview(preview, { successMessage = '' } = {}) {
 async function loadPreview(options = {}) {
   showStatus(options.successMessage || '正在加载预览…');
   try {
-    const preview = await chrome.runtime.sendMessage({ type: 'get-latest-preview' });
-    if (!preview || preview.error) {
+    const message = options.checkpointId
+      ? { type: 'getCheckpointPreview', checkpointId: options.checkpointId }
+      : { type: 'get-latest-preview' };
+    const response = await chrome.runtime.sendMessage(message);
+    const preview = response?.preview || response;
+    if (!preview || preview.error || response?.ok === false) {
       renderTopbar(null);
-      showStatus(preview?.error || '读取预览失败', true);
+      showStatus(response?.error || preview?.error || '读取预览失败', true);
       previewListEl.innerHTML = '';
       return;
     }

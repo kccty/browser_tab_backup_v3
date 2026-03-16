@@ -25,7 +25,6 @@ function renderFavicon(tab) {
 
 function renderBadges(tab) {
   const badges = [];
-  if (tab.active) badges.push('<span class="badge primary">当前</span>');
   if (tab.pinned) badges.push('<span class="badge">固定</span>');
   if (tab.groupId >= 0) badges.push(`<span class="badge">分组 ${escapeHtml(tab.groupId)}</span>`);
   return badges.join('');
@@ -47,15 +46,45 @@ function getSelectedWindows(windows, selectedWindowId) {
   return selected ? [selected] : [windows[0]];
 }
 
-function renderTopbar({ title, subtitle = '', showOpenPreview = false, menuLabel = '更多' }) {
+function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '') {
+  if (!Array.isArray(checkpoints) || !checkpoints.length) {
+    return '<span class="checkpoint-picker-static">还没有可用 checkpoint</span>';
+  }
+  return `
+    <label class="checkpoint-picker-wrap">
+      <select id="checkpointSelect" class="checkpoint-select" aria-label="选择 checkpoint">
+        ${checkpoints.map((item) => `
+          <option value="${escapeHtml(item.id)}"${String(item.id) === String(currentCheckpointId) ? ' selected' : ''}>
+            ${escapeHtml(formatTime(item.createdAt, '未知时间'))}
+          </option>
+        `).join('')}
+      </select>
+    </label>
+  `;
+}
+
+function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpointId = '', showOpenPreview = false, menuLabel = '更多' }) {
   return `
     <section class="topbar-card">
       <div class="topbar-row">
         <div class="topbar-copy">
-          <div class="topbar-title">${escapeHtml(title)}</div>
+          <div class="topbar-title-row">
+            <div class="topbar-title">${escapeHtml(title)}</div>
+            <div class="topbar-inline-tools">
+              ${renderCheckpointPicker(checkpoints, currentCheckpointId)}
+            </div>
+          </div>
           ${subtitle ? `<div class="topbar-subtitle">${escapeHtml(subtitle)}</div>` : ''}
         </div>
         <div class="topbar-actions">
+          <button id="deleteCheckpointBtn" class="icon-btn flat danger-icon-btn" title="删除当前 checkpoint" aria-label="删除当前 checkpoint">
+            <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4.75h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M5.75 7.25h12.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M8 7.25v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M10 10v5.5M14 10v5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
           <button id="saveCheckpointBtn" class="icon-btn primary flat" title="保存" aria-label="保存">
             <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 4.75h9.5l2.75 2.75v11.75a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5.75a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>

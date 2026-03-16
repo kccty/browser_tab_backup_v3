@@ -129,6 +129,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'getCheckpointPreview') {
+    void getCheckpointPreview(message.checkpointId)
+      .then((preview) => sendResponse({ ok: true, preview }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'restoreCheckpoint') {
     void restoreCheckpoint(message.checkpointId)
       .then((result) => sendResponse({ ok: true, result }))
@@ -322,11 +329,36 @@ async function getLatestPreview() {
     return buildPreviewPayload({ checkpoint: null, state: null, source: 'empty' });
   }
 
-  return buildPreviewPayload({
-    checkpoint: latest,
-    state: previewState,
-    source: latest?.id ? 'latest-state' : 'event-log'
-  });
+  return {
+    ...buildPreviewPayload({
+      checkpoint: latest,
+      state: previewState,
+      source: latest?.id ? 'latest-state' : 'event-log'
+    }),
+    checkpoints
+  };
+}
+
+async function getCheckpointPreview(checkpointId) {
+  await bootstrap();
+  await flushEvents();
+  const checkpoints = await listCheckpoints();
+  const target = checkpoints.find((item) => String(item.id) === String(checkpointId));
+  if (!target?.id) {
+    throw new Error('checkpoint 不存在');
+  }
+  const full = await getCheckpointById(target.id);
+  if (!full?.state) {
+    throw new Error('checkpoint 数据不完整');
+  }
+  return {
+    ...buildPreviewPayload({
+      checkpoint: summarizeCheckpoint(full),
+      state: full.state,
+      source: 'checkpoint'
+    }),
+    checkpoints
+  };
 }
 
 async function getStatus() {
