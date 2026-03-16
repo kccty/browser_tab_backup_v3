@@ -25,6 +25,17 @@ html, body {
   overflow: hidden;
 }
 
+html.checkpoints-page-root,
+html.checkpoints-page-root body.checkpoints-page-body {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  min-height: 100vh;
+  max-height: none;
+  overflow: auto;
+}
+
 html.popup-root,
 body.popup-root {
   width: 380px !important;
