@@ -37,9 +37,9 @@ body.page-no-scroll {
 .popup-body {
   width: 380px !important;
   min-width: 380px;
+  height: 900px;
   min-height: 900px;
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .page-body {
@@ -53,9 +53,12 @@ button {
 .popup-shell {
   width: 380px !important;
   min-width: 380px;
+  height: 900px;
   min-height: 900px;
   padding: 8px;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-shell {
@@ -202,6 +205,7 @@ button {
 .preview-panel {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -224,7 +228,9 @@ button {
 
 .preview-list {
   max-height: none;
-  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
 }
 
@@ -316,7 +322,7 @@ button {
 }
 
 .tabs-wrap::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 .tabs-wrap::-webkit-scrollbar-track {
