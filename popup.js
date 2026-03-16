@@ -15,7 +15,7 @@ function renderTopbar(preview) {
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '历史记录',
     subtitle,
-    showOpenPreview: true
+    showOpenPreview: false
   });
   bindTopbarActions();
 }
@@ -32,10 +32,9 @@ function getButtons() {
 }
 
 function bindTopbarActions() {
-  const { saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn, openPreviewBtn } = getButtons();
+  const { saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn } = getButtons();
 
   refreshBtn?.addEventListener('click', () => loadPreview());
-  openPreviewBtn?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('preview.html') }));
   importBtn?.addEventListener('click', () => importFileInput.click());
 
   saveCheckpointBtn?.addEventListener('click', async () => {
@@ -214,6 +213,14 @@ document.body.style.height = '600px';
 document.body.style.minHeight = '600px';
 document.body.style.maxHeight = '600px';
 document.body.style.overflow = 'hidden';
+
+window.addEventListener('blur', () => window.close());
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    window.close();
+  }
+});
 
 renderTopbar(null);
 loadPreview();
