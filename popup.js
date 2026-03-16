@@ -92,6 +92,17 @@ function bindWindowSelector() {
   });
 }
 
+function bindFaviconFallbacks() {
+  previewListEl.querySelectorAll('img.favicon-img').forEach((img) => {
+    img.addEventListener('error', () => {
+      const fallback = document.createElement('span');
+      fallback.className = 'icon fallback-icon';
+      fallback.textContent = '🌐';
+      img.replaceWith(fallback);
+    }, { once: true });
+  });
+}
+
 function renderPreview(preview, { successMessage = '' } = {}) {
   currentPreview = preview;
   renderTopbar(preview);
@@ -113,6 +124,7 @@ function renderPreview(preview, { successMessage = '' } = {}) {
   previewListEl.innerHTML = `${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map((win, index) => popupUI.renderWindowCard(win, index)).join('')}`;
   previewListEl.classList.remove('hidden');
   bindWindowSelector();
+  bindFaviconFallbacks();
 
   if (successMessage) {
     showStatus(successMessage);

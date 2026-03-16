@@ -18,7 +18,7 @@ function formatTime(value, fallback = '—') {
 function renderFavicon(tab) {
   const url = tab.favIconUrl ? escapeHtml(tab.favIconUrl) : '';
   if (url) {
-    return `<img class="icon" src="${url}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='&lt;span class=\'icon fallback-icon\'&gt;🌐&lt;/span&gt;'">`;
+    return `<img class="icon favicon-img" src="${url}" alt="" referrerpolicy="no-referrer">`;
   }
   return '<span class="icon fallback-icon">🌐</span>';
 }
