@@ -18,9 +18,9 @@
 html, body {
   margin: 0;
   min-height: 100%;
-  width: 338px;
-  min-width: 338px;
-  overflow: hidden;
+  width: 450px;
+  min-width: 450px;
+  overflow-x: hidden;
 }
 body {
   background: var(--bg);
@@ -29,10 +29,11 @@ body {
 }
 
 .popup-body {
-  width: 338px !important;
-  min-width: 338px;
+  width: 450px !important;
+  min-width: 450px;
   min-height: 820px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .page-body {
@@ -44,11 +45,11 @@ button {
 }
 
 .popup-shell {
-  width: 338px !important;
-  min-width: 338px;
+  width: 450px !important;
+  min-width: 450px;
   min-height: 820px;
-  padding: 2px 4px 4px;
-  overflow: hidden;
+  padding: 4px 6px 6px;
+  overflow-x: hidden;
 }
 
 .page-shell {
@@ -67,8 +68,8 @@ button {
 }
 
 .topbar-card {
-  padding: 2px 4px;
-  margin-bottom: 2px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
 }
 
 .topbar-row {
@@ -82,25 +83,24 @@ button {
 .topbar-copy {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0;
+  align-items: center;
+  gap: 6px;
   min-height: 32px;
 }
 
 .topbar-title {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 18px;
-  height: auto;
+  line-height: 32px;
+  height: 32px;
 }
 
 .topbar-subtitle {
-  margin-top: 1px;
+  margin-top: 0;
   color: var(--muted);
   font-size: 11px;
-  line-height: 14px;
-  height: auto;
+  line-height: 32px;
+  height: 32px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -187,8 +187,8 @@ button {
 }
 
 .status-banner {
-  margin: 0 0 2px;
-  padding: 2px 4px;
+  margin: 0 0 4px;
+  padding: 4px 6px;
   border-radius: 0;
   background: var(--accent-soft);
   color: var(--muted);
@@ -219,18 +219,18 @@ button {
 
 .window-switcher {
   display: flex;
-  gap: 12px;
+  gap: 18px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 0 3px;
-  margin-bottom: 1px;
+  padding: 0 0 4px;
+  margin-bottom: 2px;
   border-bottom: 0;
 }
 
 .window-pill {
   position: relative;
   flex: 0 0 auto;
-  padding: 0 0 5px;
+  padding: 0 0 8px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -238,7 +238,7 @@ button {
   cursor: pointer;
   white-space: nowrap;
   font-size: 12px;
-  line-height: 18px;
+  line-height: 32px;
 }
 
 .window-pill.active {
@@ -272,7 +272,7 @@ button {
 }
 
 .window-card + .window-card {
-  margin-top: 2px;
+  margin-top: 6px;
 }
 
 .tabs-wrap {
@@ -301,10 +301,9 @@ button {
 .tab-card {
   display: grid;
   grid-template-columns: 18px 1fr;
-  gap: 8px;
-  padding: 4px 8px 4px 12px;
-  border-radius: 8px;
-  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
 }
 
 .tab-card:hover,
@@ -313,13 +312,12 @@ button {
 }
 
 .icon {
-  width: 16px;
-  height: 16px;
-  margin-top: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
   border-radius: 4px;
   background: #f3f4f6;
   object-fit: cover;
-  align-self: center;
 }
 
 .fallback-icon {
@@ -336,7 +334,7 @@ button {
 .title {
   font-weight: 400;
   font-size: 12px;
-  line-height: 18px;
+  line-height: 32px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,8 +343,8 @@ button {
 .badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .badge {
