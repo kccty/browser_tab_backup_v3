@@ -218,6 +218,65 @@ button {
   background: #f3f4f6;
 }
 
+.menu-item.danger {
+  color: #b91c1c;
+}
+
+.checkpoints-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.checkpoints-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.checkpoints-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+.checkpoint-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.checkpoint-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checkpoint-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.checkpoint-item-time {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.checkpoint-meta-block {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.checkpoint-meta-line {
+  font-size: 13px;
+  color: #374151;
+}
+
 .panel {
   overflow: hidden;
 }

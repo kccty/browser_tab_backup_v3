@@ -26,15 +26,17 @@ function getButtons() {
     restoreLatestBtn: document.getElementById('restoreLatestBtn'),
     exportBtn: document.getElementById('exportBtn'),
     importBtn: document.getElementById('importBtn'),
-    refreshBtn: document.getElementById('refreshBtn')
+    refreshBtn: document.getElementById('refreshBtn'),
+    checkpointManagerBtn: document.getElementById('checkpointManagerBtn')
   };
 }
 
 function bindTopbarActions() {
-  const { saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn } = getButtons();
+  const { saveCheckpointBtn, restoreLatestBtn, exportBtn, importBtn, refreshBtn, checkpointManagerBtn } = getButtons();
 
   refreshBtn?.addEventListener('click', () => loadPreview());
   importBtn?.addEventListener('click', () => importFileInput.click());
+  checkpointManagerBtn?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('options.html') }));
 
   saveCheckpointBtn?.addEventListener('click', async () => {
     await withButtonBusy(saveCheckpointBtn, '⏳', async () => {

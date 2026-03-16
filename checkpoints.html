@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkpoint 管理</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body class="page-body">
+  <main class="page-shell checkpoints-shell">
+    <section class="topbar-card checkpoints-topbar">
+      <div class="topbar-row">
+        <div class="topbar-copy">
+          <div class="topbar-title">Checkpoint 管理</div>
+          <div class="topbar-subtitle" id="checkpointSummary">正在加载…</div>
+        </div>
+        <div class="topbar-actions">
+          <button id="refreshCheckpointsBtn" class="icon-btn flat" title="刷新" aria-label="刷新">↻</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel preview-panel page-panel checkpoints-panel">
+      <div class="status-banner" id="checkpointsStatus">正在加载 checkpoint…</div>
+      <div class="preview-list hidden checkpoints-list" id="checkpointsList"></div>
+    </section>
+  </main>
+
+  <script src="ui-shared.js"></script>
+  <script src="checkpoints.js"></script>
+</body>
+</html>

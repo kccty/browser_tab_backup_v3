@@ -122,6 +122,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'deleteCheckpoint') {
+    void deleteCheckpoint(message.checkpointId)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'restoreCheckpoint') {
     void restoreCheckpoint(message.checkpointId)
       .then((result) => sendResponse({ ok: true, result }))
@@ -410,6 +417,14 @@ async function listCheckpoints() {
     .map((item) => summarizeCheckpoint(item, { includeState: false }));
 }
 
+async function deleteCheckpoint(checkpointId) {
+  const db = await ensureDb();
+  return withTransaction(db, [CHECKPOINT_STORE], 'readwrite', async (tx) => {
+    await idbDelete(tx.objectStore(CHECKPOINT_STORE), checkpointId);
+    return { ok: true, checkpointId };
+  });
+}
+
 async function getCheckpointById(checkpointId) {
   const db = await ensureDb();
   return withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
@@ -583,10 +598,10 @@ async function captureCurrentState() {
       tabs: (win.tabs || []).filter(shouldPersistTab).map(normalizeTab).sort((a, b) => a.index - b.index)
     }));
 
-  return finalizeState({
+  return finalizeState(await enrichStateFavicons({
     capturedAt: Date.now(),
     windows: normalized
-  });
+  }));
 }
 
 async function rebuildLatestState() {
@@ -857,6 +872,22 @@ function normalizeTab(tab) {
     favIconUrl: sanitizeUrl(tab.favIconUrl),
     status: tab.status || 'unknown'
   };
+}
+
+async function enrichStateFavicons(state) {
+  if (!state?.windows?.length) return state;
+  await Promise.all(state.windows.map(async (win) => {
+    await Promise.all((win.tabs || []).map(async (tab) => {
+      if (!tab?.id) return;
+      try {
+        const liveTab = await chrome.tabs.get(tab.id);
+        tab.favIconUrl = sanitizeUrl(liveTab?.favIconUrl) || tab.favIconUrl || '';
+      } catch {
+        tab.favIconUrl = tab.favIconUrl || '';
+      }
+    }));
+  }));
+  return state;
 }
 
 function normalizeWindow(window) {
