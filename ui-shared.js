@@ -167,6 +167,7 @@ window.EdgeRecoveryUI = {
   renderTopbar,
   renderWindowSelector,
   renderWindowCard,
+  getWindowLabel,
   getSelectedWindows,
   countTabs
 };

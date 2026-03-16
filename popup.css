@@ -87,6 +87,10 @@ button {
   padding: 20px;
 }
 
+.checkpoints-page-shell {
+  max-width: 1200px;
+}
+
 .page-body .page-shell {
   height: 100vh;
   overflow: hidden;

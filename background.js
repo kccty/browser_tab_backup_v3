@@ -71,7 +71,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  void onMutatingEvent('tab-activated', activeInfo, { immediate: true });
+  const { windowId, tabId } = activeInfo || {};
+  if (stateCache) {
+    applyEventToState(stateCache, {
+      type: 'tab-activated',
+      payload: { windowId, tabId },
+      createdAt: Date.now()
+    });
+  }
 });
 
 chrome.tabs.onMoved.addListener((tabId, moveInfo) => {
@@ -99,7 +106,13 @@ chrome.windows.onRemoved.addListener((windowId) => {
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
-  void onMutatingEvent('window-focus-changed', { windowId }, { immediate: true });
+  if (stateCache) {
+    applyEventToState(stateCache, {
+      type: 'window-focus-changed',
+      payload: { windowId },
+      createdAt: Date.now()
+    });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -635,7 +648,6 @@ async function restoreCheckpoint(checkpointId) {
   try {
     const restoredWindowIds = await materializeState(state);
     await rebuildStateCacheFromBrowser();
-    await onMutatingEvent('restore-checkpoint', { checkpointId, restoredWindowIds }, { immediate: true });
     return {
       restoredWindowIds,
       restoredFrom: checkpointId,
@@ -659,7 +671,6 @@ async function restoreLatestState() {
   try {
     const restoredWindowIds = await materializeState(latestState);
     await rebuildStateCacheFromBrowser();
-    await onMutatingEvent('restore-latest-state', { restoredWindowIds }, { immediate: true });
     return {
       restoredWindowIds,
       restoredFrom: 'latest-state',
