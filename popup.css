@@ -19,9 +19,9 @@ html, body {
   margin: 0;
   width: 380px;
   min-width: 380px;
-  height: 900px;
-  min-height: 900px;
-  max-height: 900px;
+  height: 600px;
+  min-height: 600px;
+  max-height: 600px;
   overflow: hidden;
 }
 
@@ -29,9 +29,9 @@ html.popup-root,
 body.popup-root {
   width: 380px !important;
   min-width: 380px !important;
-  height: 900px !important;
-  min-height: 900px !important;
-  max-height: 900px !important;
+  height: 600px !important;
+  min-height: 600px !important;
+  max-height: 600px !important;
   overflow: hidden !important;
 }
 body {
@@ -42,9 +42,9 @@ body {
 
 html.page-no-scroll,
 body.page-no-scroll {
-  height: 900px;
-  min-height: 900px;
-  max-height: 900px;
+  height: 600px;
+  min-height: 600px;
+  max-height: 600px;
   overflow: hidden;
 }
 
@@ -56,8 +56,8 @@ body.popup-root.page-no-scroll {
 .popup-body {
   width: 380px !important;
   min-width: 380px;
-  height: 900px;
-  min-height: 900px;
+  height: 600px;
+  min-height: 600px;
   overflow: hidden;
 }
 
@@ -72,9 +72,9 @@ button {
 .popup-shell {
   width: 380px !important;
   min-width: 380px;
-  height: calc(900px - 16px);
-  min-height: calc(900px - 16px);
-  max-height: calc(900px - 16px);
+  height: calc(600px - 16px);
+  min-height: calc(600px - 16px);
+  max-height: calc(600px - 16px);
   padding: 8px;
   overflow: hidden;
   display: flex;
