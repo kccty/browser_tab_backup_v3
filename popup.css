@@ -308,15 +308,15 @@ button {
 
 .window-pill.active {
   background: transparent;
-  color: #111827;
+  color: #2563eb;
   border: 0;
 }
 
 .window-pill::after {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 8px;
+  right: 8px;
   bottom: 0;
   height: 2px;
   background: transparent;
@@ -328,8 +328,10 @@ button {
   background: #d1d5db;
 }
 
+.window-pill.active:hover::after,
+.window-pill.active:focus-visible::after,
 .window-pill.active::after {
-  background: #111827;
+  background: #2563eb;
 }
 
 .window-card {
