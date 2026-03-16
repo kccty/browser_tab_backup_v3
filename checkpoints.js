@@ -171,10 +171,28 @@ async function loadEvents(checkpointId, statusMessage = '') {
 }
 
 function renderList(items) {
+  summaryEl.textContent = items.length ? `共 ${items.length} 个 checkpoint` : '没有 checkpoint';
+  hideStatus();
+  listEl.classList.remove('hidden');
+
   if (!items.length) {
     selectedCheckpointId = null;
-    summaryEl.textContent = '没有 checkpoint';
-    showStatus('还没有 checkpoint');
+    listEl.innerHTML = `
+      <div class="checkpoints-layout">
+        <div class="checkpoint-list-column">
+          <div class="event-empty">还没有 checkpoint</div>
+        </div>
+        <aside class="events-panel" id="eventsPanel">
+          <div class="events-panel-header">
+            <div>
+              <div class="events-panel-title">增量事件</div>
+              <div class="events-panel-subtitle" id="eventsSubtitle">选择一个 checkpoint 查看对应增量</div>
+            </div>
+          </div>
+          <div class="event-list" id="eventList"><div class="event-empty">暂无可显示的增量事件</div></div>
+        </aside>
+      </div>
+    `;
     return;
   }
 
@@ -182,10 +200,7 @@ function renderList(items) {
     selectedCheckpointId = items[0]?.id || null;
   }
 
-  summaryEl.textContent = `共 ${items.length} 个 checkpoint`;
   renderShell(items);
-  hideStatus();
-  listEl.classList.remove('hidden');
   void loadEvents(selectedCheckpointId);
 }
 

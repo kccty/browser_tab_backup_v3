@@ -307,7 +307,7 @@ button {
 
 .checkpoints-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   height: 100%;
   min-height: 0;
@@ -676,5 +676,9 @@ button {
 
   .page-shell {
     padding: 12px;
+  }
+
+  .checkpoints-layout {
+    grid-template-columns: 1fr;
   }
 }
