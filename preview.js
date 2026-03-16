@@ -197,5 +197,8 @@ async function withButtonBusy(button, busyText, fn) {
   }
 }
 
+document.documentElement.classList.add('page-no-scroll');
+document.body.classList.add('page-no-scroll');
+
 renderTopbar(null);
 loadPreview();

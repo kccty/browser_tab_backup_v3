@@ -25,9 +25,11 @@ function renderFavicon(tab) {
 
 function renderBadges(tab) {
   const badges = [];
+  const time = formatTime(tab.lastAccessed, '');
   if (tab.active) badges.push('<span class="badge primary">当前</span>');
   if (tab.pinned) badges.push('<span class="badge">固定</span>');
   if (tab.groupId >= 0) badges.push(`<span class="badge">分组 ${escapeHtml(tab.groupId)}</span>`);
+  if (time) badges.push(`<span class="badge">${escapeHtml(time)}</span>`);
   return badges.join('');
 }
 
