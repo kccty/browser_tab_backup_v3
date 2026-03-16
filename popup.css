@@ -307,10 +307,14 @@ button {
 
 .checkpoints-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr);
   gap: 14px;
   height: 100%;
   min-height: 0;
+}
+
+.checkpoints-layout-triple {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr);
 }
 
 .checkpoint-list-column,
@@ -391,7 +395,8 @@ button {
   color: var(--muted);
 }
 
-.event-list {
+.event-list,
+.preview-side-list {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -434,6 +439,61 @@ button {
   line-height: 1.5;
   color: #475569;
   word-break: break-word;
+}
+
+.preview-window-card {
+  padding: 10px 12px;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.preview-window-card + .preview-window-card {
+  margin-top: 10px;
+}
+
+.preview-window-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-window-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.preview-window-tabs {
+  margin-top: 10px;
+}
+
+.preview-side-tab {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.preview-side-tab + .preview-side-tab {
+  margin-top: 8px;
+}
+
+.preview-side-tab-title,
+.preview-side-tab-url {
+  display: block;
+}
+
+.preview-side-tab-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.preview-side-tab-url {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #64748b;
+  word-break: break-all;
 }
 
 .panel {
@@ -678,7 +738,8 @@ button {
     padding: 12px;
   }
 
-  .checkpoints-layout {
+  .checkpoints-layout,
+  .checkpoints-layout-triple {
     grid-template-columns: 1fr;
   }
 }

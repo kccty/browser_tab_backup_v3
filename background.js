@@ -269,6 +269,21 @@ async function clearEvents(eventStore) {
   }
 }
 
+async function deleteEventsForCheckpointRange(eventStore, checkpoints, checkpointId) {
+  const target = checkpoints.find((item) => String(item.id) === String(checkpointId));
+  if (!target) return;
+
+  const sorted = checkpoints.slice().sort((a, b) => a.createdAt - b.createdAt);
+  const next = sorted.find((item) => item.createdAt > target.createdAt);
+  const allEvents = await idbGetAll(eventStore);
+  for (const event of allEvents) {
+    const eventAt = Number(event?.createdAt || 0);
+    if (eventAt >= target.createdAt && (!next || eventAt < next.createdAt)) {
+      await idbDelete(eventStore, event.id);
+    }
+  }
+}
+
 async function createCheckpoint(reason = 'manual') {
   await bootstrap();
   await flushEvents();
@@ -289,7 +304,7 @@ async function createCheckpoint(reason = 'manual') {
     await idbPut(checkpointStore, checkpoint);
     await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
     await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
-    await clearEvents(eventStore);
+    await trimEvents(eventStore, MAX_EVENTS);
     await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
   });
 
@@ -371,28 +386,12 @@ async function getCheckpointPreview(checkpointId) {
     throw new Error('checkpoint 不存在');
   }
 
-  const latest = checkpoints[0] || null;
-  if (latest?.id && String(latest.id) === String(target.id)) {
-    const latestState = await rebuildLatestState();
-    return {
-      ...buildPreviewPayload({
-        checkpoint: latest,
-        state: latestState,
-        source: 'latest-state'
-      }),
-      checkpoints
-    };
-  }
-
-  const full = await getCheckpointById(target.id);
-  if (!full?.state) {
-    throw new Error('checkpoint 数据不完整');
-  }
+  const state = await rebuildStateForCheckpoint(checkpointId, checkpoints);
   return {
     ...buildPreviewPayload({
-      checkpoint: summarizeCheckpoint(full),
-      state: full.state,
-      source: 'checkpoint'
+      checkpoint: target,
+      state,
+      source: 'checkpoint-with-events'
     }),
     checkpoints
   };
@@ -516,8 +515,12 @@ async function listEvents(checkpointId = null) {
 }
 
 async function deleteCheckpoint(checkpointId) {
+  await bootstrap();
+  await flushEvents();
   const db = await ensureDb();
-  return withTransaction(db, [CHECKPOINT_STORE], 'readwrite', async (tx) => {
+  const checkpoints = await listCheckpoints();
+  return withTransaction(db, [CHECKPOINT_STORE, EVENT_STORE], 'readwrite', async (tx) => {
+    await deleteEventsForCheckpointRange(tx.objectStore(EVENT_STORE), checkpoints, checkpointId);
     await idbDelete(tx.objectStore(CHECKPOINT_STORE), checkpointId);
     return { ok: true, checkpointId };
   });
@@ -626,16 +629,7 @@ async function restoreCheckpoint(checkpointId) {
   await flushEvents();
   const checkpoints = await listCheckpoints();
   const latest = checkpoints[0] || null;
-  let state;
-
-  if (latest?.id && String(latest.id) === String(checkpointId)) {
-    state = await rebuildLatestState();
-  } else {
-    const db = await ensureDb();
-    const checkpoint = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
-    if (!checkpoint) throw new Error('Checkpoint not found');
-    state = finalizeState(cloneState(checkpoint.state));
-  }
+  const state = await rebuildStateForCheckpoint(checkpointId, checkpoints);
 
   restoreInProgress = true;
   try {
@@ -780,27 +774,46 @@ async function captureCurrentState() {
 
 async function rebuildLatestState() {
   const db = await ensureDb();
-  const [checkpoints, events] = await Promise.all([
-    withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(CHECKPOINT_STORE))),
+  const checkpoints = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(CHECKPOINT_STORE)));
+  checkpoints.sort((a, b) => b.createdAt - a.createdAt);
+  const latestCheckpoint = checkpoints[0] || null;
+  if (!latestCheckpoint) {
+    return null;
+  }
+  return rebuildStateForCheckpoint(latestCheckpoint.id, checkpoints);
+}
+
+async function rebuildStateForCheckpoint(checkpointId, checkpointsInput = null) {
+  const db = await ensureDb();
+  const checkpoints = checkpointsInput || await listCheckpoints();
+  const target = checkpoints.find((item) => String(item.id) === String(checkpointId));
+  if (!target?.id) {
+    throw new Error('checkpoint 不存在');
+  }
+
+  const sortedByTime = checkpoints.slice().sort((a, b) => a.createdAt - b.createdAt);
+  const next = sortedByTime.find((item) => item.createdAt > target.createdAt);
+  const [full, events] = await Promise.all([
+    getCheckpointById(target.id),
     withTransaction(db, [EVENT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(EVENT_STORE)))
   ]);
 
-  checkpoints.sort((a, b) => b.createdAt - a.createdAt);
-  events.sort((a, b) => a.createdAt - b.createdAt);
+  if (!full?.state) {
+    throw new Error('checkpoint 数据不完整');
+  }
 
-  const latestCheckpoint = checkpoints[0] || null;
-  const checkpointState = latestCheckpoint ? cloneState(latestCheckpoint.state) : makeEmptyState();
-  const replayStart = latestCheckpoint ? latestCheckpoint.createdAt : 0;
-
-  for (const event of events) {
-    if (event.createdAt >= replayStart) {
-      applyEventToState(checkpointState, event);
+  const state = cloneState(full.state);
+  const sortedEvents = events.slice().sort((a, b) => Number(a?.createdAt || 0) - Number(b?.createdAt || 0));
+  for (const event of sortedEvents) {
+    const eventAt = Number(event?.createdAt || 0);
+    if (eventAt >= target.createdAt && (!next || eventAt < next.createdAt)) {
+      applyEventToState(state, event);
     }
   }
 
-  checkpointState.capturedAt = Date.now();
-  refreshCounts(checkpointState);
-  return checkpointState.windows.length ? checkpointState : latestCheckpoint ? checkpointState : null;
+  state.capturedAt = Date.now();
+  refreshCounts(state);
+  return finalizeState(state);
 }
 
 function applyEventToState(state, event) {

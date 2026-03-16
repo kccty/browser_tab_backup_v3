@@ -6,11 +6,11 @@ const summaryEl = document.getElementById('checkpointSummary');
 const refreshBtn = document.getElementById('refreshCheckpointsBtn');
 
 let selectedCheckpointId = null;
+let currentCheckpoints = [];
 
 function showStatus(message) {
   statusEl.textContent = message;
   statusEl.classList.remove('hidden');
-  listEl.classList.add('hidden');
 }
 
 function hideStatus() {
@@ -27,9 +27,43 @@ function formatMeta(item) {
   return parts.map((line) => `<div class="checkpoint-meta-line">${ui.escapeHtml(line)}</div>`).join('');
 }
 
+function renderPreviewWindows(preview) {
+  const previewListEl = document.getElementById('previewSideList');
+  const previewSubtitleEl = document.getElementById('previewSubtitle');
+  if (!previewListEl || !previewSubtitleEl) return;
+
+  const windows = Array.isArray(preview?.windows) ? preview.windows : [];
+  const windowCount = windows.length;
+  const tabCount = windows.reduce((sum, win) => sum + (Array.isArray(win.tabs) ? win.tabs.length : 0), 0);
+  previewSubtitleEl.textContent = `${windowCount} 窗口，${tabCount} 标签`;
+
+  if (!windows.length) {
+    previewListEl.innerHTML = '<div class="event-empty">当前没有可显示的标签</div>';
+    return;
+  }
+
+  previewListEl.innerHTML = windows.map((win, index) => {
+    const tabs = Array.isArray(win.tabs) ? win.tabs : [];
+    return `
+      <section class="preview-window-card">
+        <div class="preview-window-title">${ui.escapeHtml(ui.getWindowLabel(win, index))}</div>
+        <div class="preview-window-meta">${tabs.length} 个标签</div>
+        <div class="preview-window-tabs">
+          ${tabs.map((tab) => `
+            <div class="preview-side-tab">
+              <span class="preview-side-tab-title">${ui.escapeHtml(tab.title || tab.url || '未命名标签页')}</span>
+              <span class="preview-side-tab-url">${ui.escapeHtml(tab.url || '')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+    `;
+  }).join('');
+}
+
 function renderShell(items) {
   listEl.innerHTML = `
-    <div class="checkpoints-layout">
+    <div class="checkpoints-layout checkpoints-layout-triple">
       <div class="checkpoint-list-column" id="checkpointListColumn"></div>
       <aside class="events-panel" id="eventsPanel">
         <div class="events-panel-header">
@@ -39,6 +73,15 @@ function renderShell(items) {
           </div>
         </div>
         <div class="event-list" id="eventList">${selectedCheckpointId ? '正在加载增量事件…' : '请选择左侧 checkpoint'}</div>
+      </aside>
+      <aside class="events-panel preview-side-panel" id="previewSidePanel">
+        <div class="events-panel-header">
+          <div>
+            <div class="events-panel-title">标签预览</div>
+            <div class="events-panel-subtitle" id="previewSubtitle">当前 checkpoint + 增量后的标签列表</div>
+          </div>
+        </div>
+        <div class="preview-side-list" id="previewSideList">${selectedCheckpointId ? '正在加载标签预览…' : '请选择左侧 checkpoint'}</div>
       </aside>
     </div>
   `;
@@ -69,7 +112,10 @@ function bindCheckpointActions(items) {
       if (event.target.closest('[data-delete-id]')) return;
       selectedCheckpointId = itemEl.dataset.checkpointId || null;
       renderShell(items);
-      await loadEvents(selectedCheckpointId);
+      await Promise.all([
+        loadEvents(selectedCheckpointId),
+        loadPreview(selectedCheckpointId)
+      ]);
     });
   });
 
@@ -77,7 +123,7 @@ function bindCheckpointActions(items) {
     button.addEventListener('click', async () => {
       const checkpointId = button.dataset.deleteId;
       if (!checkpointId) return;
-      const confirmed = window.confirm(`确定删除 checkpoint？\n\n${checkpointId}`);
+      const confirmed = window.confirm(`确定删除 checkpoint 及其对应增量事件？\n\n${checkpointId}`);
       if (!confirmed) return;
       button.disabled = true;
       const response = await chrome.runtime.sendMessage({ type: 'deleteCheckpoint', checkpointId });
@@ -141,7 +187,10 @@ function bindEventDeleteActions() {
         window.alert(response?.error || '删除失败');
         return;
       }
-      await loadEvents(selectedCheckpointId, '增量事件已删除。');
+      await Promise.all([
+        loadEvents(selectedCheckpointId, '增量事件已删除。'),
+        loadPreview(selectedCheckpointId)
+      ]);
     });
   });
 }
@@ -170,7 +219,28 @@ async function loadEvents(checkpointId, statusMessage = '') {
   }
 }
 
+async function loadPreview(checkpointId) {
+  const previewListEl = document.getElementById('previewSideList');
+  const previewSubtitleEl = document.getElementById('previewSubtitle');
+  if (!previewListEl || !previewSubtitleEl) return;
+  if (!checkpointId) {
+    previewSubtitleEl.textContent = '当前 checkpoint + 增量后的标签列表';
+    previewListEl.innerHTML = '请选择左侧 checkpoint';
+    return;
+  }
+  previewSubtitleEl.textContent = '正在加载标签预览…';
+  previewListEl.innerHTML = '正在加载标签预览…';
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'getCheckpointPreview', checkpointId });
+    renderPreviewWindows(response?.preview || response);
+  } catch (error) {
+    previewSubtitleEl.textContent = '读取标签预览失败';
+    previewListEl.innerHTML = ui.escapeHtml(error?.message || String(error) || '读取失败');
+  }
+}
+
 function renderList(items) {
+  currentCheckpoints = items.slice();
   summaryEl.textContent = items.length ? `共 ${items.length} 个 checkpoint` : '没有 checkpoint';
   hideStatus();
   listEl.classList.remove('hidden');
@@ -178,18 +248,17 @@ function renderList(items) {
   if (!items.length) {
     selectedCheckpointId = null;
     listEl.innerHTML = `
-      <div class="checkpoints-layout">
+      <div class="checkpoints-layout checkpoints-layout-triple">
         <div class="checkpoint-list-column">
           <div class="event-empty">还没有 checkpoint</div>
         </div>
-        <aside class="events-panel" id="eventsPanel">
-          <div class="events-panel-header">
-            <div>
-              <div class="events-panel-title">增量事件</div>
-              <div class="events-panel-subtitle" id="eventsSubtitle">选择一个 checkpoint 查看对应增量</div>
-            </div>
-          </div>
-          <div class="event-list" id="eventList"><div class="event-empty">暂无可显示的增量事件</div></div>
+        <aside class="events-panel">
+          <div class="events-panel-header"><div><div class="events-panel-title">增量事件</div><div class="events-panel-subtitle">选择一个 checkpoint 查看对应增量</div></div></div>
+          <div class="event-list"><div class="event-empty">暂无可显示的增量事件</div></div>
+        </aside>
+        <aside class="events-panel preview-side-panel">
+          <div class="events-panel-header"><div><div class="events-panel-title">标签预览</div><div class="events-panel-subtitle">当前 checkpoint + 增量后的标签列表</div></div></div>
+          <div class="preview-side-list"><div class="event-empty">暂无可显示的标签预览</div></div>
         </aside>
       </div>
     `;
@@ -201,7 +270,10 @@ function renderList(items) {
   }
 
   renderShell(items);
-  void loadEvents(selectedCheckpointId);
+  void Promise.all([
+    loadEvents(selectedCheckpointId),
+    loadPreview(selectedCheckpointId)
+  ]);
 }
 
 async function loadCheckpoints(successMessage = '') {
