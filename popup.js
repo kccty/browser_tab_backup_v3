@@ -14,7 +14,9 @@ function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
   const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
   const effectiveCheckpointId = checkpoint?.id || selectedCheckpointId || checkpoints[0]?.id || '';
-  const subtitle = checkpoint ? `checkpoint：${popupUI.formatTime(checkpoint.createdAt, '未知时间')}` : '还没有可用 checkpoint';
+  const subtitle = checkpoint
+    ? `${checkpoint.windowCount ?? 0} 窗口，${checkpoint.tabCount ?? 0} 标签`
+    : '还没有可用 checkpoint';
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '历史记录',
     subtitle,
