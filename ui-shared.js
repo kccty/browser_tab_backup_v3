@@ -25,12 +25,15 @@ function renderFavicon(tab) {
 
 function renderBadges(tab) {
   const badges = [];
-  const time = formatTime(tab.lastAccessed, '');
   if (tab.active) badges.push('<span class="badge primary">当前</span>');
   if (tab.pinned) badges.push('<span class="badge">固定</span>');
   if (tab.groupId >= 0) badges.push(`<span class="badge">分组 ${escapeHtml(tab.groupId)}</span>`);
-  if (time) badges.push(`<span class="badge">${escapeHtml(time)}</span>`);
   return badges.join('');
+}
+
+function renderMeta(tab) {
+  const time = formatTime(tab.lastAccessed, '');
+  return time ? `<div class="tab-meta">${escapeHtml(time)}</div>` : '';
 }
 
 function getWindowLabel(_win, index) {
@@ -113,6 +116,7 @@ function renderWindowCard(win, index) {
             ${renderFavicon(tab)}
             <div class="tab-main">
               <div class="title">${escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页')}</div>
+              ${renderMeta(tab)}
               <div class="badges">${renderBadges(tab)}</div>
             </div>
           </div>
