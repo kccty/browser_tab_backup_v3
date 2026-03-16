@@ -248,6 +248,13 @@ async function trimEvents(eventStore, maxEvents) {
   }
 }
 
+async function clearEvents(eventStore) {
+  const all = await idbGetAll(eventStore);
+  for (const event of all) {
+    await idbDelete(eventStore, event.id);
+  }
+}
+
 async function createCheckpoint(reason = 'manual') {
   await bootstrap();
   await flushEvents();
@@ -261,12 +268,14 @@ async function createCheckpoint(reason = 'manual') {
   };
 
   const db = await ensureDb();
-  await withTransaction(db, [CHECKPOINT_STORE, META_STORE], 'readwrite', async (tx) => {
+  await withTransaction(db, [CHECKPOINT_STORE, META_STORE, EVENT_STORE], 'readwrite', async (tx) => {
     const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
     const metaStore = tx.objectStore(META_STORE);
+    const eventStore = tx.objectStore(EVENT_STORE);
     await idbPut(checkpointStore, checkpoint);
     await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
     await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
+    await clearEvents(eventStore);
     await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
   });
 
@@ -347,6 +356,20 @@ async function getCheckpointPreview(checkpointId) {
   if (!target?.id) {
     throw new Error('checkpoint 不存在');
   }
+
+  const latest = checkpoints[0] || null;
+  if (latest?.id && String(latest.id) === String(target.id)) {
+    const latestState = await rebuildLatestState();
+    return {
+      ...buildPreviewPayload({
+        checkpoint: latest,
+        state: latestState,
+        source: 'latest-state'
+      }),
+      checkpoints
+    };
+  }
+
   const full = await getCheckpointById(target.id);
   if (!full?.state) {
     throw new Error('checkpoint 数据不完整');
@@ -385,9 +408,9 @@ async function exportLatestCheckpoint() {
     throw new Error('没有可导出的 checkpoint');
   }
 
-  const full = await getCheckpointById(latest.id);
-  if (!full?.state) {
-    throw new Error('checkpoint 数据不完整，无法导出');
+  const latestState = await rebuildLatestState();
+  if (!latestState?.windows) {
+    throw new Error('最新状态不完整，无法导出');
   }
 
   return {
@@ -395,10 +418,10 @@ async function exportLatestCheckpoint() {
     version: 1,
     exportedAt: Date.now(),
     checkpoint: {
-      id: full.id,
-      reason: full.reason || 'manual',
-      createdAt: full.createdAt,
-      state: cloneState(full.state)
+      id: latest.id,
+      reason: latest.reason || 'manual',
+      createdAt: latest.createdAt,
+      state: cloneState(latestState)
     }
   };
 }
@@ -491,19 +514,28 @@ function summarizeState(state) {
 async function restoreCheckpoint(checkpointId) {
   await bootstrap();
   await flushEvents();
-  const db = await ensureDb();
-  const checkpoint = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
-  if (!checkpoint) throw new Error('Checkpoint not found');
+  const checkpoints = await listCheckpoints();
+  const latest = checkpoints[0] || null;
+  let state;
+
+  if (latest?.id && String(latest.id) === String(checkpointId)) {
+    state = await rebuildLatestState();
+  } else {
+    const db = await ensureDb();
+    const checkpoint = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGet(tx.objectStore(CHECKPOINT_STORE), checkpointId));
+    if (!checkpoint) throw new Error('Checkpoint not found');
+    state = finalizeState(cloneState(checkpoint.state));
+  }
 
   restoreInProgress = true;
   try {
-    const restoredWindowIds = await materializeState(checkpoint.state);
+    const restoredWindowIds = await materializeState(state);
     await rebuildStateCacheFromBrowser();
     await onMutatingEvent('restore-checkpoint', { checkpointId, restoredWindowIds }, { immediate: true });
     return {
       restoredWindowIds,
       restoredFrom: checkpointId,
-      mode: 'checkpoint',
+      mode: latest?.id && String(latest.id) === String(checkpointId) ? 'latest-state' : 'checkpoint',
       state: summarizeState(stateCache)
     };
   } finally {
