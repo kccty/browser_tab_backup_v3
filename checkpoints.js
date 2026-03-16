@@ -155,13 +155,19 @@ async function loadEvents(checkpointId, statusMessage = '') {
     renderEvents([]);
     return;
   }
-  const response = await chrome.runtime.sendMessage({ type: 'listEvents', checkpointId });
-  if (!response?.ok) {
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'listEvents', checkpointId });
+    if (!response?.ok) {
+      if (subtitleEl) subtitleEl.textContent = '读取增量事件失败';
+      if (eventListEl) eventListEl.innerHTML = ui.escapeHtml(response?.error || '读取失败');
+      return;
+    }
+    renderEvents(response.events || []);
+  } catch (error) {
     if (subtitleEl) subtitleEl.textContent = '读取增量事件失败';
-    if (eventListEl) eventListEl.innerHTML = ui.escapeHtml(response?.error || '读取失败');
-    return;
+    if (eventListEl) eventListEl.innerHTML = ui.escapeHtml(error?.message || String(error) || '读取失败');
   }
-  renderEvents(response.events || []);
 }
 
 function renderList(items) {
@@ -185,8 +191,13 @@ function renderList(items) {
 
 async function loadCheckpoints(successMessage = '') {
   showStatus(successMessage || '正在加载 checkpoint…');
-  const response = await chrome.runtime.sendMessage({ type: 'listCheckpoints' });
-  renderList(response?.checkpoints || []);
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'listCheckpoints' });
+    renderList(response?.checkpoints || []);
+  } catch (error) {
+    summaryEl.textContent = '读取失败';
+    showStatus(`读取 checkpoint 失败：${error?.message || error}`);
+  }
 }
 
 refreshBtn.addEventListener('click', () => loadCheckpoints());

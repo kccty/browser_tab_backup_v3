@@ -1,5 +1,5 @@
 const DB_NAME = 'edge-session-recovery';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const CHECKPOINT_STORE = 'checkpoints';
 const EVENT_STORE = 'events';
 const META_STORE = 'meta';
@@ -504,11 +504,14 @@ async function listEvents(checkpointId = null) {
       throw new Error('checkpoint 不存在');
     }
     const next = sortedCheckpoints.find((item) => item.createdAt > current.createdAt);
-    filtered = filtered.filter((event) => event.createdAt >= current.createdAt && (!next || event.createdAt < next.createdAt));
+    filtered = filtered.filter((event) => {
+      const eventAt = Number(event?.createdAt || 0);
+      return eventAt >= current.createdAt && (!next || eventAt < next.createdAt);
+    });
   }
 
   return filtered
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => Number(b?.createdAt || 0) - Number(a?.createdAt || 0))
     .map((event) => summarizeEvent(event));
 }
 
