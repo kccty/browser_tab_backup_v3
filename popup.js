@@ -213,13 +213,5 @@ document.body.style.minHeight = '600px';
 document.body.style.maxHeight = '600px';
 document.body.style.overflow = 'hidden';
 
-window.addEventListener('blur', () => window.close());
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    window.close();
-  }
-});
-
 renderTopbar(null);
 loadPreview();
