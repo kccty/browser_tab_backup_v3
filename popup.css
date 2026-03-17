@@ -669,7 +669,7 @@ button {
   display: grid;
   grid-template-columns: 18px 1fr;
   align-items: start;
-  gap: 7px;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 12px;
 }
@@ -682,7 +682,7 @@ button {
 .icon {
   width: 18px;
   height: 18px;
-  margin-top: 2px;
+  margin-top: 0;
   border-radius: 4px;
   background: #f3f4f6;
   object-fit: cover;
@@ -700,6 +700,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  padding-top: 1px;
 }
 
 .title {
