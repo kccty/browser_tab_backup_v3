@@ -56,7 +56,7 @@ function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '', acti
     <label class="checkpoint-picker-wrap">
       <select id="checkpointSelect" class="checkpoint-select" aria-label="选择 checkpoint">
         ${checkpoints.map((item) => {
-          const label = escapeHtml(formatTime(item.createdAt, '未知时间'));
+          const label = (String(item.id) === normalizedActive ? '* ' : '') + escapeHtml(formatTime(item.createdAt, '未知时间'));
           return `<option value="${escapeHtml(item.id)}"${String(item.id) === normalizedCurrent ? ' selected' : ''}>${label}</option>`;
         }).join('')}
       </select>
