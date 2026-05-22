@@ -85,8 +85,6 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
       createdAt: Date.now()
     });
   }
-  // 如果激活的是 suspended 标签，导航到真实 URL
-  void unsuspendTab(tabId);
 });
 
 chrome.tabs.onMoved.addListener((tabId, moveInfo) => {
@@ -791,55 +789,44 @@ async function restoreLatestState() {
   }
 }
 
-const SUSPENDED_PREFIX = chrome.runtime.getURL('suspended.html');
-
-async function unsuspendTab(tabId) {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab?.url?.startsWith(SUSPENDED_PREFIX)) return;
-    const params = new URLSearchParams(tab.url.slice(SUSPENDED_PREFIX.length + 1));
-    const realUrl = params.get('url');
-    if (realUrl) {
-      await chrome.tabs.update(tabId, { url: realUrl });
-    }
-  } catch {
-    // tab may not exist
-  }
-}
-
 async function materializeState(state) {
   if (!state || !Array.isArray(state.windows)) {
     throw new Error('Invalid recoverable state');
   }
 
-  const suspendedBase = chrome.runtime.getURL('suspended.html');
   const restoredWindowIds = [];
 
-  // 并行创建所有窗口
-  const windowTasks = state.windows
-    .filter((win) => {
-      if (win.type === 'devtools') return false;
-      const tabs = (win.tabs || []).filter((t) => t?.pendingUrl || t?.url);
-      return tabs.length > 0;
-    })
-    .map(async (win) => {
-      const tabs = win.tabs
-        .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
-        .filter((tab) => tab.restoreUrl)
-        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  for (const win of state.windows) {
+    // 只跳过 devtools 窗口
+    if (win.type === 'devtools') {
+      console.log('[materializeState] Skipping devtools window:', win.id);
+      continue;
+    }
 
-      // 找 active 标签
-      const activeIdx = Math.max(0, tabs.findIndex((t) => t.active));
+    const tabs = Array.isArray(win?.tabs)
+      ? win.tabs
+          .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
+          .filter((tab) => tab.restoreUrl)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      : [];
 
-      // 非 active 标签用 suspended.html 代理（不加载真实页面）
-      const urls = tabs.map((tab, i) => {
-        if (i === activeIdx) return tab.restoreUrl;
-        const params = new URLSearchParams({ url: tab.restoreUrl, title: tab.title || '' });
-        return `${suspendedBase}?${params.toString()}`;
-      });
+    if (!tabs.length) {
+      console.log('[materializeState] Skipping window with no valid tabs:', win.id, 'type:', win.type, 'original tabs:', win.tabs?.length);
+      continue;
+    }
 
-      const createData = { url: urls, focused: false };
+    console.log('[materializeState] Restoring window:', win.id, 'type:', win.type, 'tabs:', tabs.length);
+
+    try {
+      // 用 url 数组一次性创建窗口和所有标签
+      const urls = tabs.map((tab) => tab.restoreUrl);
+      const createData = {
+        url: urls,
+        focused: false
+      };
+
       if (win.incognito) createData.incognito = true;
+
       const left = nullableNumber(win.left);
       const top = nullableNumber(win.top);
       const width = nullableNumber(win.width);
@@ -849,33 +836,35 @@ async function materializeState(state) {
       if (width !== undefined) createData.width = width;
       if (height !== undefined) createData.height = height;
 
-      try {
-        const createdWindow = await chrome.windows.create(createData);
-        restoredWindowIds.push(createdWindow.id);
+      const createdWindow = await chrome.windows.create(createData);
+      restoredWindowIds.push(createdWindow.id);
 
-        const normalizedState = normalizeWindowStateForCreate(win.state);
-        if (normalizedState && normalizedState !== 'normal') {
-          await chrome.windows.update(createdWindow.id, { state: normalizedState }).catch(() => {});
-        }
-
-        // 设置 pinned
-        const createdTabs = (createdWindow.tabs || []).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-        const pinPromises = [];
-        for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
-          if (tabs[i].pinned) {
-            pinPromises.push(chrome.tabs.update(createdTabs[i].id, { pinned: true }).catch(() => {}));
-          }
-        }
-        if (pinPromises.length) await Promise.all(pinPromises);
-
-        return createdWindow.id;
-      } catch (error) {
-        console.warn('[materializeState] Failed to restore window:', error);
-        return null;
+      // 设置窗口状态
+      const normalizedState = normalizeWindowStateForCreate(win.state);
+      if (normalizedState && normalizedState !== 'normal') {
+        await chrome.windows.update(createdWindow.id, { state: normalizedState });
       }
-    });
 
-  await Promise.all(windowTasks);
+      // 设置 pinned 和 active
+      const createdTabs = Array.isArray(createdWindow.tabs)
+        ? [...createdWindow.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        : [];
+
+      const updatePromises = [];
+      for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
+        const targetTab = tabs[i];
+        if (targetTab.pinned || targetTab.active) {
+          updatePromises.push(chrome.tabs.update(createdTabs[i].id, {
+            pinned: !!targetTab.pinned,
+            active: !!targetTab.active
+          }));
+        }
+      }
+      if (updatePromises.length) await Promise.all(updatePromises);
+    } catch (error) {
+      console.warn('[materializeState] Failed to restore window:', error);
+    }
+  }
 
   // focus 最后一个窗口
   if (restoredWindowIds.length) {
@@ -1179,28 +1168,11 @@ function shouldPersistTab(tab) {
   const url = tab?.pendingUrl || tab?.url || '';
   if (!url) return false;
   if (url === 'about:blank' || url === 'about:newtab') return false;
-  // 允许 suspended.html（会被 normalizeTab 解析为真实 URL）
-  if (url.startsWith(SUSPENDED_PREFIX)) return true;
   return !url.startsWith('chrome://') && !url.startsWith('edge://') && !url.startsWith('devtools://') && !url.startsWith('chrome-extension://') && !url.startsWith('extension://');
 }
 
 function normalizeTab(tab) {
   if (!tab) return null;
-  let url = sanitizeUrl(tab.url);
-  let pendingUrl = sanitizeUrl(tab.pendingUrl);
-  let title = tab.title || '';
-
-  // 解析 suspended.html URL 还原为真实 URL
-  const effectiveUrl = url || pendingUrl || '';
-  if (effectiveUrl.startsWith(SUSPENDED_PREFIX)) {
-    try {
-      const params = new URLSearchParams(effectiveUrl.slice(SUSPENDED_PREFIX.length + 1));
-      url = params.get('url') || url;
-      pendingUrl = '';
-      title = params.get('title') || title;
-    } catch {}
-  }
-
   return {
     id: tab.id ?? null,
     windowId: tab.windowId ?? null,
@@ -1212,9 +1184,9 @@ function normalizeTab(tab) {
     autoDiscardable: !!tab.autoDiscardable,
     groupId: tab.groupId ?? -1,
     openerTabId: tab.openerTabId ?? null,
-    title,
-    url,
-    pendingUrl,
+    title: tab.title || '',
+    url: sanitizeUrl(tab.url),
+    pendingUrl: sanitizeUrl(tab.pendingUrl),
     favIconUrl: sanitizeUrl(tab.favIconUrl),
     status: tab.status || 'unknown'
   };
