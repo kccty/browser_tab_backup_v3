@@ -6,7 +6,6 @@ const META_STORE = 'meta';
 const MAX_EVENTS = 12000;
 const MAX_CHECKPOINTS = 60;
 const EVENT_FLUSH_DEBOUNCE_MS = 80;
-const AUTO_CHECKPOINT_INTERVAL_MINUTES = 5;
 
 let pendingEvents = [];
 let flushTimer = null;
@@ -32,7 +31,6 @@ async function bootstrap() {
     }
     await setMeta('bootAt', Date.now());
     lifecycleReady = true;
-    await setupAutoCheckpoint();
   })();
   try {
     await bootstrapStatePromise;
@@ -123,19 +121,6 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   }
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'auto-checkpoint') {
-    void createCheckpoint('auto').catch((error) => console.warn('[auto-checkpoint]', error));
-  }
-});
-
-async function setupAutoCheckpoint() {
-  await chrome.alarms.clear('auto-checkpoint').catch(() => {});
-  await chrome.alarms.create('auto-checkpoint', {
-    delayInMinutes: AUTO_CHECKPOINT_INTERVAL_MINUTES,
-    periodInMinutes: AUTO_CHECKPOINT_INTERVAL_MINUTES
-  });
-}
 
 /**
  * 直接从已有 state 创建 checkpoint（不重新抓取浏览器状态）

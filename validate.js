@@ -32,7 +32,7 @@ for (const file of requiredFiles) {
 const manifestPath = path.join(base, 'manifest.json');
 if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const requiredPermissions = ['tabs', 'storage', 'sessions', 'alarms'];
+  const requiredPermissions = ['tabs', 'storage', 'sessions'];
   for (const permission of requiredPermissions) {
     if (!manifest.permissions || !manifest.permissions.includes(permission)) {
       console.error(`Missing permission in manifest: ${permission}`);
