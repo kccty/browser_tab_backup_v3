@@ -58,7 +58,7 @@ function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '', acti
         ${checkpoints.map((item) => {
           const isActive = String(item.id) === normalizedActive;
           const label = isActive
-            ? `● ${escapeHtml(formatTime(item.createdAt, '未知时间'))} (活跃)`
+            ? `${escapeHtml(formatTime(item.createdAt, '未知时间'))} ← 活跃`
             : escapeHtml(formatTime(item.createdAt, '未知时间'));
           return `<option value="${escapeHtml(item.id)}"${String(item.id) === normalizedCurrent ? ' selected' : ''}>${label}</option>`;
         }).join('')}

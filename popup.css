@@ -390,12 +390,8 @@ button {
   border-radius: 14px;
   border: 1px solid #e2e8f0;
 }
-.checkpoint-item.current .checkpoint-item-title::before {
-  content: '● ';
-  color: var(--chip-active, #111);
-}
-.checkpoint-item.current .checkpoint-item-title {
-  font-weight: 700;
+.checkpoint-item.current {
+  border-left: 3px solid #2563eb;
 }
 
 .events-panel {
