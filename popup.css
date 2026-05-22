@@ -392,7 +392,7 @@ button {
 }
 .checkpoint-item.current .checkpoint-item-title::before {
   content: '● ';
-  color: #22c55e;
+  color: var(--chip-active, #111);
 }
 .checkpoint-item.current .checkpoint-item-title {
   font-weight: 700;
