@@ -796,8 +796,8 @@ async function materializeState(state) {
 
   const restoredWindowIds = [];
 
-  for (let winIdx = 0; winIdx < state.windows.length; winIdx += 1) {
-    const win = state.windows[winIdx];
+  // 并行创建所有窗口
+  const windowPromises = state.windows.map(async (win, winIdx) => {
     const tabs = Array.isArray(win?.tabs)
       ? win.tabs
           .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
@@ -805,14 +805,14 @@ async function materializeState(state) {
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       : [];
 
-    if (!tabs.length) continue;
+    if (!tabs.length) return null;
 
     try {
-      const firstTab = tabs[0];
-      const isLastWindow = winIdx === state.windows.length - 1;
+      // 用 url 数组一次性创建所有标签
+      const urls = tabs.map((tab) => tab.restoreUrl);
       const createData = {
-        url: firstTab.restoreUrl,
-        focused: isLastWindow ? true : !!win.focused
+        url: urls,
+        focused: false
       };
 
       if (win.incognito) {
@@ -829,46 +829,48 @@ async function materializeState(state) {
       if (height !== undefined) createData.height = height;
 
       const createdWindow = await chrome.windows.create(createData);
+      restoredWindowIds.push(createdWindow.id);
 
+      // 设置窗口状态（最大化等）
       const normalizedState = normalizeWindowStateForCreate(win.state);
       if (normalizedState && normalizedState !== 'normal') {
         await chrome.windows.update(createdWindow.id, { state: normalizedState });
       }
-      restoredWindowIds.push(createdWindow.id);
 
-      let createdTabs = Array.isArray(createdWindow.tabs) ? [...createdWindow.tabs] : [];
-      let baseTab = createdTabs[0] || null;
+      // 设置 pinned 和 active 状态
+      const createdTabs = Array.isArray(createdWindow.tabs)
+        ? [...createdWindow.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        : [];
 
-      for (let i = 1; i < tabs.length; i += 1) {
-        const createdTab = await chrome.tabs.create({
-          windowId: createdWindow.id,
-          url: tabs[i].restoreUrl,
-          active: false,
-          pinned: false,
-          index: i
-        });
-        createdTabs.push(createdTab);
-      }
-
-      createdTabs = createdTabs.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-
+      const updatePromises = [];
       for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
         const targetTab = tabs[i];
-        await chrome.tabs.update(createdTabs[i].id, {
-          pinned: !!targetTab.pinned,
-          active: !!targetTab.active
-        });
+        if (targetTab.pinned || targetTab.active) {
+          updatePromises.push(chrome.tabs.update(createdTabs[i].id, {
+            pinned: !!targetTab.pinned,
+            active: !!targetTab.active
+          }));
+        }
       }
+      if (updatePromises.length) await Promise.all(updatePromises);
 
-      if (!tabs.some((tab) => tab.active) && baseTab) {
-        await chrome.tabs.update(baseTab.id, { active: true });
-      }
+      return createdWindow.id;
     } catch (error) {
       console.warn('[materializeState] Failed to restore window:', error);
+      return null;
     }
+  });
+
+  await Promise.all(windowPromises);
+
+  // 最后 focus 最后一个窗口（或原本 focused 的窗口）
+  const focusedWin = state.windows.find((w) => w.focused) || state.windows[state.windows.length - 1];
+  const focusedIdx = state.windows.indexOf(focusedWin);
+  if (restoredWindowIds[focusedIdx]) {
+    await chrome.windows.update(restoredWindowIds[focusedIdx], { focused: true }).catch(() => {});
   }
 
-  return restoredWindowIds;
+  return restoredWindowIds.filter(Boolean);
 }
 
 async function rebuildStateCacheFromBrowser() {
