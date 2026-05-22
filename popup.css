@@ -386,13 +386,16 @@ button {
 }
 
 .checkpoint-item.active {
-  background: var(--accent-soft, #f5f5f5);
+  background: #f8fafc;
   border-radius: 14px;
-  border: 2px solid var(--chip-active, #111);
+  border: 1px solid #e2e8f0;
 }
-.checkpoint-item.active .checkpoint-item-title {
+.checkpoint-item.current .checkpoint-item-title::before {
+  content: '● ';
+  color: #22c55e;
+}
+.checkpoint-item.current .checkpoint-item-title {
   font-weight: 700;
-  color: var(--chip-active, #111);
 }
 
 .events-panel {

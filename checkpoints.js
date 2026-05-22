@@ -213,8 +213,13 @@ function renderShell(items) {
   `;
 
   const column = document.getElementById('checkpointListColumn');
-  column.innerHTML = items.map((item) => `
-    <section class="checkpoint-item ${selectedCheckpointId === item.id ? 'active' : ''}" data-checkpoint-id="${ui.escapeHtml(item.id)}">
+  const currentCheckpointId = items[0]?.id || null; // 最新的 = 当前活跃的
+  column.innerHTML = items.map((item) => {
+    const classes = ['checkpoint-item'];
+    if (selectedCheckpointId === item.id) classes.push('active');
+    if (item.id === currentCheckpointId) classes.push('current');
+    return `
+    <section class="${classes.join(' ')}" data-checkpoint-id="${ui.escapeHtml(item.id)}">
       <div class="checkpoint-item-head">
         <div>
           <div class="checkpoint-item-title">${ui.escapeHtml(item.id)}</div>
@@ -228,7 +233,8 @@ function renderShell(items) {
         ${formatMeta(item)}
       </div>
     </section>
-  `).join('');
+  `;
+  }).join('');
 
   bindCheckpointActions(items);
 }
