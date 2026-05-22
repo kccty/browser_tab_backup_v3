@@ -810,13 +810,10 @@ async function materializeState(state) {
     if (!tabs.length) continue;
 
     try {
-      // 找到 active 标签（或第一个）作为唯一加载的标签
-      const activeIdx = tabs.findIndex((t) => t.active);
-      const firstActiveIdx = activeIdx >= 0 ? activeIdx : 0;
-      const firstTab = tabs[firstActiveIdx];
-
+      // 用 url 数组一次性创建窗口和所有标签
+      const urls = tabs.map((tab) => tab.restoreUrl);
       const createData = {
-        url: firstTab.restoreUrl,
+        url: urls,
         focused: false
       };
 
@@ -840,28 +837,22 @@ async function materializeState(state) {
         await chrome.windows.update(createdWindow.id, { state: normalizedState });
       }
 
-      // 创建其余标签（active: false，Edge 自动延迟加载非活动标签）
-      for (let i = 0; i < tabs.length; i += 1) {
-        if (i === firstActiveIdx) continue;
-        const tab = tabs[i];
-        try {
-          await chrome.tabs.create({
-            windowId: createdWindow.id,
-            url: tab.restoreUrl,
-            active: false,
-            pinned: !!tab.pinned,
-            index: i < firstActiveIdx ? i : i
-          });
-        } catch (e) {
-          console.warn('[materializeState] tab create failed:', e);
+      // 设置 pinned 和 active
+      const createdTabs = Array.isArray(createdWindow.tabs)
+        ? [...createdWindow.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        : [];
+
+      const updatePromises = [];
+      for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
+        const targetTab = tabs[i];
+        if (targetTab.pinned || targetTab.active) {
+          updatePromises.push(chrome.tabs.update(createdTabs[i].id, {
+            pinned: !!targetTab.pinned,
+            active: !!targetTab.active
+          }));
         }
       }
-
-      // 设置第一个标签的 pinned
-      const firstCreatedTab = createdWindow.tabs?.[0];
-      if (firstTab.pinned && firstCreatedTab) {
-        await chrome.tabs.update(firstCreatedTab.id, { pinned: true }).catch(() => {});
-      }
+      if (updatePromises.length) await Promise.all(updatePromises);
     } catch (error) {
       console.warn('[materializeState] Failed to restore window:', error);
     }
