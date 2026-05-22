@@ -142,16 +142,23 @@ function renderWindowCard(win, index) {
   return `
     <section class="window-card" aria-label="窗口${index + 1}">
       <div class="tabs-wrap">
-        ${tabs.map((tab) => `
-          <div class="tab-card" title="${escapeHtml(tab.url || tab.pendingUrl || '')}">
+        ${tabs.map((tab) => {
+          const tabUrl = escapeHtml(tab.url || tab.pendingUrl || '');
+          const tabTitle = escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页');
+          const titleHtml = tabUrl
+            ? `<a class="title tab-link" href="${tabUrl}" target="_blank" rel="noopener noreferrer" title="点击打开: ${tabUrl}">${tabTitle}</a>`
+            : `<div class="title">${tabTitle}</div>`;
+          return `
+          <div class="tab-card" title="${tabUrl}">
             ${renderFavicon(tab)}
             <div class="tab-main">
-              <div class="title">${escapeHtml(tab.title || tab.url || tab.pendingUrl || '未命名标签页')}</div>
+              ${titleHtml}
               ${renderMeta(tab)}
               <div class="badges">${renderBadges(tab)}</div>
             </div>
           </div>
-        `).join('') || '<div class="tab-empty">这个窗口没有可恢复的页签</div>'}
+        `;
+        }).join('') || '<div class="tab-empty">这个窗口没有可恢复的页签</div>'}
       </div>
     </section>
   `;

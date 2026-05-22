@@ -11,6 +11,11 @@ const requiredFiles = [
   'options.html',
   'options.js',
   'options.css',
+  'checkpoints.html',
+  'checkpoints.js',
+  'ui-shared.js',
+  'preview.html',
+  'preview.js',
   'README.md'
 ];
 
@@ -27,17 +32,12 @@ for (const file of requiredFiles) {
 const manifestPath = path.join(base, 'manifest.json');
 if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const requiredPermissions = ['tabs', 'storage', 'sessions'];
+  const requiredPermissions = ['tabs', 'storage', 'sessions', 'alarms'];
   for (const permission of requiredPermissions) {
     if (!manifest.permissions || !manifest.permissions.includes(permission)) {
       console.error(`Missing permission in manifest: ${permission}`);
       failed = true;
     }
-  }
-
-  if (manifest.permissions.includes('alarms')) {
-    console.error('alarms permission should be removed in manual-checkpoint mode');
-    failed = true;
   }
 
   if (manifest.manifest_version !== 3) {

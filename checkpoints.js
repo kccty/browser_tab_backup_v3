@@ -94,6 +94,8 @@ function renderShell(items) {
           <div class="checkpoint-item-title">${ui.escapeHtml(item.id)}</div>
           <div class="checkpoint-item-time">${ui.escapeHtml(ui.formatTime(item.createdAt, '—'))}</div>
         </div>
+        <button class="menu-item checkpoint-export-btn" type="button" data-export-id="${ui.escapeHtml(item.id)}">导出</button>
+        <button class="menu-item checkpoint-restore-btn" type="button" data-restore-id="${ui.escapeHtml(item.id)}">恢复</button>
         <button class="menu-item danger checkpoint-delete-btn" type="button" data-delete-id="${ui.escapeHtml(item.id)}">删除</button>
       </div>
       <div class="checkpoint-meta-block">
@@ -109,13 +111,53 @@ function bindCheckpointActions(items) {
   const column = document.getElementById('checkpointListColumn');
   column?.querySelectorAll('[data-checkpoint-id]').forEach((itemEl) => {
     itemEl.addEventListener('click', async (event) => {
-      if (event.target.closest('[data-delete-id]')) return;
+      if (event.target.closest('[data-delete-id]') || event.target.closest('[data-export-id]') || event.target.closest('[data-restore-id]')) return;
       selectedCheckpointId = itemEl.dataset.checkpointId || null;
       renderShell(items);
       await Promise.all([
         loadEvents(selectedCheckpointId),
         loadPreview(selectedCheckpointId)
       ]);
+    });
+  });
+
+  column?.querySelectorAll('[data-export-id]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const checkpointId = button.dataset.exportId;
+      if (!checkpointId) return;
+      button.disabled = true;
+      button.textContent = '导出中…';
+      const response = await chrome.runtime.sendMessage({ type: 'exportCheckpoint', checkpointId });
+      if (!response?.ok || !response.payload) {
+        button.disabled = false;
+        button.textContent = '导出';
+        window.alert(response?.error || '导出失败');
+        return;
+      }
+      downloadCheckpoint(response.payload);
+      button.disabled = false;
+      button.textContent = '导出';
+    });
+  });
+
+  column?.querySelectorAll('[data-restore-id]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const checkpointId = button.dataset.restoreId;
+      if (!checkpointId) return;
+      const confirmed = window.confirm(`确定恢复该 checkpoint？`);
+      if (!confirmed) return;
+      button.disabled = true;
+      button.textContent = '恢复中…';
+      const response = await chrome.runtime.sendMessage({ type: 'restoreCheckpoint', checkpointId });
+      if (!response?.ok) {
+        button.disabled = false;
+        button.textContent = '恢复';
+        window.alert(response?.error || '恢复失败');
+        return;
+      }
+      window.alert('恢复完成。');
+      button.disabled = false;
+      button.textContent = '恢复';
     });
   });
 
@@ -289,3 +331,20 @@ async function loadCheckpoints(successMessage = '') {
 
 refreshBtn.addEventListener('click', () => loadCheckpoints());
 loadCheckpoints();
+
+function downloadCheckpoint(payload) {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  const stamp = new Date(payload.checkpoint?.createdAt || payload.exportedAt || Date.now())
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace('T', '_')
+    .replace('Z', '');
+  anchor.href = url;
+  anchor.download = `checkpoint-${stamp}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

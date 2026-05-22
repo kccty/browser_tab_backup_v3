@@ -6,6 +6,7 @@ const META_STORE = 'meta';
 const MAX_EVENTS = 12000;
 const MAX_CHECKPOINTS = 60;
 const EVENT_FLUSH_DEBOUNCE_MS = 80;
+const AUTO_CHECKPOINT_INTERVAL_MINUTES = 5;
 
 let pendingEvents = [];
 let flushTimer = null;
@@ -14,19 +15,24 @@ let lifecycleReady = false;
 let stateCache = null;
 let bootstrapStatePromise = null;
 let restoreInProgress = false;
+let dbInstance = null;
+let isColdStart = false;
 
 bootstrap().catch((error) => console.error('[bootstrap]', error));
 
 async function bootstrap() {
+  if (lifecycleReady) return;
   if (bootstrapStatePromise) return bootstrapStatePromise;
   bootstrapStatePromise = (async () => {
     await ensureDb();
-    stateCache = await rebuildLatestState();
-    if (!stateCache) {
-      stateCache = await captureCurrentState();
+    stateCache = await captureCurrentState();
+    if (isColdStart) {
+      await createCheckpointFromState(stateCache, 'restart');
+      isColdStart = false;
     }
     await setMeta('bootAt', Date.now());
     lifecycleReady = true;
+    await setupAutoCheckpoint();
   })();
   try {
     await bootstrapStatePromise;
@@ -40,6 +46,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  isColdStart = true;
   void bootstrap();
 });
 
@@ -56,7 +63,7 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  const hasCriticalChange = !!(changeInfo.url || 'pinned' in changeInfo);
+  const hasCriticalChange = !!(changeInfo.url || changeInfo.title || 'pinned' in changeInfo);
   if (!hasCriticalChange) {
     return;
   }
@@ -64,10 +71,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     tabId,
     changeInfo: {
       url: sanitizeUrl(changeInfo.url),
+      title: typeof changeInfo.title === 'string' ? changeInfo.title : null,
       pinned: typeof changeInfo.pinned === 'boolean' ? changeInfo.pinned : null
     },
     tab: normalizeTab(tab)
-  }, { immediate: true });
+  }, { immediate: !changeInfo.title });
 });
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -114,6 +122,44 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
     });
   }
 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'auto-checkpoint') {
+    void createCheckpoint('auto').catch((error) => console.warn('[auto-checkpoint]', error));
+  }
+});
+
+async function setupAutoCheckpoint() {
+  await chrome.alarms.clear('auto-checkpoint').catch(() => {});
+  await chrome.alarms.create('auto-checkpoint', {
+    delayInMinutes: AUTO_CHECKPOINT_INTERVAL_MINUTES,
+    periodInMinutes: AUTO_CHECKPOINT_INTERVAL_MINUTES
+  });
+}
+
+/**
+ * 直接从已有 state 创建 checkpoint（不重新抓取浏览器状态）
+ */
+async function createCheckpointFromState(state, reason = 'manual') {
+  const checkpoint = {
+    id: crypto.randomUUID(),
+    reason,
+    createdAt: Date.now(),
+    state: finalizeState(cloneState(state))
+  };
+
+  const db = await ensureDb();
+  await withTransaction(db, [CHECKPOINT_STORE, META_STORE], 'readwrite', async (tx) => {
+    const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
+    const metaStore = tx.objectStore(META_STORE);
+    await idbPut(checkpointStore, checkpoint);
+    await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
+    await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
+    await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
+  });
+
+  return summarizeCheckpoint(checkpoint);
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== 'object') return false;
@@ -191,6 +237,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'exportCheckpoint') {
+    void exportCheckpointById(message.checkpointId)
+      .then((payload) => sendResponse({ ok: true, payload }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'importCheckpointFile') {
     void importCheckpointFile(message.payload)
       .then((result) => sendResponse({ ok: true, result }))
@@ -257,12 +310,47 @@ async function persistEvents(events) {
   await withTransaction(db, [EVENT_STORE, META_STORE], 'readwrite', async (tx) => {
     const eventStore = tx.objectStore(EVENT_STORE);
     const metaStore = tx.objectStore(META_STORE);
-    for (const event of events) {
-      await idbPut(eventStore, event);
+    const puts = events.map((event) => idbPut(eventStore, event));
+    puts.push(idbPut(metaStore, { key: 'lastEventAt', value: events[events.length - 1].createdAt }));
+    await Promise.all(puts);
+
+    // 达到上限 → 归档为新 checkpoint + 清空事件
+    const allEvents = await idbGetAll(eventStore);
+    if (allEvents.length >= MAX_EVENTS) {
+      await archiveAndReset(db);
     }
-    await idbPut(metaStore, { key: 'lastEventAt', value: events[events.length - 1].createdAt });
-    await trimEvents(eventStore, MAX_EVENTS);
   });
+}
+
+/**
+ * 事件达到上限时：保存当前状态为 checkpoint，清空所有事件
+ */
+async function archiveAndReset() {
+  const freshState = await captureCurrentState();
+  stateCache = freshState;
+
+  const checkpoint = {
+    id: crypto.randomUUID(),
+    reason: 'auto-archive',
+    createdAt: Date.now(),
+    state: finalizeState(cloneState(freshState))
+  };
+
+  const db = await ensureDb();
+  await withTransaction(db, [CHECKPOINT_STORE, EVENT_STORE, META_STORE], 'readwrite', async (tx) => {
+    const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
+    const eventStore = tx.objectStore(EVENT_STORE);
+    const metaStore = tx.objectStore(META_STORE);
+    await idbPut(checkpointStore, checkpoint);
+    await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
+    await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
+    // 清空所有事件
+    const allEvents = await idbGetAll(eventStore);
+    await Promise.all(allEvents.map((event) => idbDelete(eventStore, event.id)));
+    await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
+  });
+
+  console.log('[archiveAndReset] Events archived into checkpoint, event log cleared.');
 }
 
 async function trimEvents(eventStore, maxEvents) {
@@ -270,16 +358,16 @@ async function trimEvents(eventStore, maxEvents) {
   if (all.length <= maxEvents) return;
   all.sort((a, b) => a.createdAt - b.createdAt);
   const extra = all.length - maxEvents;
+  const deletes = [];
   for (let i = 0; i < extra; i += 1) {
-    await idbDelete(eventStore, all[i].id);
+    deletes.push(idbDelete(eventStore, all[i].id));
   }
+  await Promise.all(deletes);
 }
 
 async function clearEvents(eventStore) {
   const all = await idbGetAll(eventStore);
-  for (const event of all) {
-    await idbDelete(eventStore, event.id);
-  }
+  await Promise.all(all.map((event) => idbDelete(eventStore, event.id)));
 }
 
 async function deleteEventsForCheckpointRange(eventStore, checkpoints, checkpointId) {
@@ -289,12 +377,14 @@ async function deleteEventsForCheckpointRange(eventStore, checkpoints, checkpoin
   const sorted = checkpoints.slice().sort((a, b) => a.createdAt - b.createdAt);
   const next = sorted.find((item) => item.createdAt > target.createdAt);
   const allEvents = await idbGetAll(eventStore);
+  const deletes = [];
   for (const event of allEvents) {
     const eventAt = Number(event?.createdAt || 0);
     if (eventAt >= target.createdAt && (!next || eventAt < next.createdAt)) {
-      await idbDelete(eventStore, event.id);
+      deletes.push(idbDelete(eventStore, event.id));
     }
   }
+  await Promise.all(deletes);
 }
 
 async function createCheckpoint(reason = 'manual') {
@@ -310,14 +400,12 @@ async function createCheckpoint(reason = 'manual') {
   };
 
   const db = await ensureDb();
-  await withTransaction(db, [CHECKPOINT_STORE, META_STORE, EVENT_STORE], 'readwrite', async (tx) => {
+  await withTransaction(db, [CHECKPOINT_STORE, META_STORE], 'readwrite', async (tx) => {
     const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
     const metaStore = tx.objectStore(META_STORE);
-    const eventStore = tx.objectStore(EVENT_STORE);
     await idbPut(checkpointStore, checkpoint);
     await idbPut(metaStore, { key: 'latestCheckpointId', value: checkpoint.id });
     await idbPut(metaStore, { key: 'lastCheckpointAt', value: checkpoint.createdAt });
-    await trimEvents(eventStore, MAX_EVENTS);
     await trimCheckpoints(checkpointStore, MAX_CHECKPOINTS);
   });
 
@@ -329,9 +417,11 @@ async function trimCheckpoints(checkpointStore, maxCheckpoints) {
   if (all.length <= maxCheckpoints) return;
   all.sort((a, b) => a.createdAt - b.createdAt);
   const extra = all.length - maxCheckpoints;
+  const deletes = [];
   for (let i = 0; i < extra; i += 1) {
-    await idbDelete(checkpointStore, all[i].id);
+    deletes.push(idbDelete(checkpointStore, all[i].id));
   }
+  await Promise.all(deletes);
 }
 
 function clonePreviewTab(tab = {}) {
@@ -399,12 +489,17 @@ async function getCheckpointPreview(checkpointId) {
     throw new Error('checkpoint 不存在');
   }
 
-  const state = await rebuildStateForCheckpoint(checkpointId, checkpoints);
+  const full = await getCheckpointById(target.id);
+  if (!full?.state) {
+    throw new Error('checkpoint 数据不完整');
+  }
+
+  const state = finalizeState(cloneState(full.state));
   return {
     ...buildPreviewPayload({
       checkpoint: target,
       state,
-      source: 'checkpoint-with-events'
+      source: 'checkpoint'
     }),
     checkpoints
   };
@@ -448,6 +543,26 @@ async function exportLatestCheckpoint() {
       reason: latest.reason || 'manual',
       createdAt: latest.createdAt,
       state: cloneState(latestState)
+    }
+  };
+}
+
+async function exportCheckpointById(checkpointId) {
+  await bootstrap();
+  if (!checkpointId) throw new Error('未指定 checkpoint');
+
+  const full = await getCheckpointById(checkpointId);
+  if (!full?.state) throw new Error('checkpoint 数据不完整');
+
+  return {
+    format: 'edge-history-recovery-checkpoint',
+    version: 1,
+    exportedAt: Date.now(),
+    checkpoint: {
+      id: full.id,
+      reason: full.reason || 'manual',
+      createdAt: full.createdAt,
+      state: cloneState(full.state)
     }
   };
 }
@@ -640,9 +755,16 @@ function summarizeState(state) {
 async function restoreCheckpoint(checkpointId) {
   await bootstrap();
   await flushEvents();
-  const checkpoints = await listCheckpoints();
-  const latest = checkpoints[0] || null;
-  const state = await rebuildStateForCheckpoint(checkpointId, checkpoints);
+
+  const full = await getCheckpointById(checkpointId);
+  if (!full?.state) {
+    throw new Error('checkpoint 数据不完整');
+  }
+
+  const state = finalizeState(cloneState(full.state));
+  if (!state?.windows?.length) {
+    throw new Error('该 checkpoint 没有可恢复的窗口');
+  }
 
   restoreInProgress = true;
   try {
@@ -651,7 +773,7 @@ async function restoreCheckpoint(checkpointId) {
     return {
       restoredWindowIds,
       restoredFrom: checkpointId,
-      mode: latest?.id && String(latest.id) === String(checkpointId) ? 'latest-state' : 'checkpoint',
+      mode: 'checkpoint',
       state: summarizeState(stateCache)
     };
   } finally {
@@ -689,7 +811,8 @@ async function materializeState(state) {
 
   const restoredWindowIds = [];
 
-  for (const win of state.windows) {
+  for (let winIdx = 0; winIdx < state.windows.length; winIdx += 1) {
+    const win = state.windows[winIdx];
     const tabs = Array.isArray(win?.tabs)
       ? win.tabs
           .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
@@ -699,56 +822,64 @@ async function materializeState(state) {
 
     if (!tabs.length) continue;
 
-    const firstTab = tabs[0];
-    const createData = {
-      url: firstTab.restoreUrl,
-      focused: !!win.focused,
-      incognito: !!win.incognito
-    };
+    try {
+      const firstTab = tabs[0];
+      const isLastWindow = winIdx === state.windows.length - 1;
+      const createData = {
+        url: firstTab.restoreUrl,
+        focused: isLastWindow ? true : !!win.focused
+      };
 
-    const left = nullableNumber(win.left);
-    const top = nullableNumber(win.top);
-    const width = nullableNumber(win.width);
-    const height = nullableNumber(win.height);
-    if (left !== undefined) createData.left = left;
-    if (top !== undefined) createData.top = top;
-    if (width !== undefined) createData.width = width;
-    if (height !== undefined) createData.height = height;
+      if (win.incognito) {
+        createData.incognito = true;
+      }
 
-    const createdWindow = await chrome.windows.create(createData);
+      const left = nullableNumber(win.left);
+      const top = nullableNumber(win.top);
+      const width = nullableNumber(win.width);
+      const height = nullableNumber(win.height);
+      if (left !== undefined) createData.left = left;
+      if (top !== undefined) createData.top = top;
+      if (width !== undefined) createData.width = width;
+      if (height !== undefined) createData.height = height;
 
-    const normalizedState = normalizeWindowStateForCreate(win.state);
-    if (normalizedState && normalizedState !== 'normal') {
-      await chrome.windows.update(createdWindow.id, { state: normalizedState });
-    }
-    restoredWindowIds.push(createdWindow.id);
+      const createdWindow = await chrome.windows.create(createData);
 
-    let createdTabs = Array.isArray(createdWindow.tabs) ? [...createdWindow.tabs] : [];
-    let baseTab = createdTabs[0] || null;
+      const normalizedState = normalizeWindowStateForCreate(win.state);
+      if (normalizedState && normalizedState !== 'normal') {
+        await chrome.windows.update(createdWindow.id, { state: normalizedState });
+      }
+      restoredWindowIds.push(createdWindow.id);
 
-    for (let i = 1; i < tabs.length; i += 1) {
-      const createdTab = await chrome.tabs.create({
-        windowId: createdWindow.id,
-        url: tabs[i].restoreUrl,
-        active: false,
-        pinned: false,
-        index: i
-      });
-      createdTabs.push(createdTab);
-    }
+      let createdTabs = Array.isArray(createdWindow.tabs) ? [...createdWindow.tabs] : [];
+      let baseTab = createdTabs[0] || null;
 
-    createdTabs = createdTabs.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+      for (let i = 1; i < tabs.length; i += 1) {
+        const createdTab = await chrome.tabs.create({
+          windowId: createdWindow.id,
+          url: tabs[i].restoreUrl,
+          active: false,
+          pinned: false,
+          index: i
+        });
+        createdTabs.push(createdTab);
+      }
 
-    for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
-      const targetTab = tabs[i];
-      await chrome.tabs.update(createdTabs[i].id, {
-        pinned: !!targetTab.pinned,
-        active: !!targetTab.active
-      });
-    }
+      createdTabs = createdTabs.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
-    if (!tabs.some((tab) => tab.active) && baseTab) {
-      await chrome.tabs.update(baseTab.id, { active: true });
+      for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
+        const targetTab = tabs[i];
+        await chrome.tabs.update(createdTabs[i].id, {
+          pinned: !!targetTab.pinned,
+          active: !!targetTab.active
+        });
+      }
+
+      if (!tabs.some((tab) => tab.active) && baseTab) {
+        await chrome.tabs.update(baseTab.id, { active: true });
+      }
+    } catch (error) {
+      console.warn('[materializeState] Failed to restore window:', error);
     }
   }
 
@@ -1048,7 +1179,8 @@ function sortTabs(windowState) {
 function shouldPersistTab(tab) {
   const url = tab?.pendingUrl || tab?.url || '';
   if (!url) return false;
-  return !url.startsWith('chrome://') && !url.startsWith('edge://') && !url.startsWith('devtools://');
+  if (url === 'about:blank' || url === 'about:newtab') return false;
+  return !url.startsWith('chrome://') && !url.startsWith('edge://') && !url.startsWith('devtools://') && !url.startsWith('chrome-extension://') && !url.startsWith('extension://');
 }
 
 function normalizeTab(tab) {
@@ -1119,6 +1251,7 @@ function nullableNumber(value) {
 }
 
 async function ensureDb() {
+  if (dbInstance) return dbInstance;
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
@@ -1135,7 +1268,12 @@ async function ensureDb() {
         db.createObjectStore(META_STORE, { keyPath: 'key' });
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      dbInstance = request.result;
+      dbInstance.onclose = () => { dbInstance = null; };
+      dbInstance.onversionchange = () => { dbInstance.close(); dbInstance = null; };
+      resolve(dbInstance);
+    };
     request.onerror = () => reject(request.error);
   });
 }

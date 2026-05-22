@@ -91,8 +91,12 @@ function bindTopbarActions() {
 
   exportBtn?.addEventListener('click', async () => {
     await withButtonBusy(exportBtn, '导出中…', async () => {
+      const checkpointId = currentPreview?.checkpoint?.id || selectedCheckpointId;
       showStatus('正在导出 checkpoint…');
-      const result = await chrome.runtime.sendMessage({ type: 'exportLatestCheckpoint' });
+      const message = checkpointId
+        ? { type: 'exportCheckpoint', checkpointId }
+        : { type: 'exportLatestCheckpoint' };
+      const result = await chrome.runtime.sendMessage(message);
       if (!result?.ok || !result.payload) throw new Error(result?.error || '导出失败');
       downloadCheckpoint(result.payload);
       showStatus('checkpoint 已导出。');

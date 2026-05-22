@@ -710,6 +710,20 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+a.title.tab-link {
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  display: block;
+  max-width: 100%;
+}
+
+a.title.tab-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
 }
 
 .tab-meta {
