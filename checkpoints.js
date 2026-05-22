@@ -274,14 +274,16 @@ function bindCheckpointActions(items) {
       if (!confirmed) return;
       button.disabled = true;
       button.textContent = '恢复中…';
+      startRestoreStatusPolling();
       const response = await chrome.runtime.sendMessage({ type: 'restoreCheckpoint', checkpointId });
+      stopRestoreStatusPolling();
       if (!response?.ok) {
         button.disabled = false;
         button.textContent = '恢复';
-        window.alert(response?.error || '恢复失败');
+        showStatus(response?.error || '恢复失败');
         return;
       }
-      window.alert('恢复完成。');
+      showStatus(`恢复完成！`);
       button.disabled = false;
       button.textContent = '恢复';
     });
@@ -497,4 +499,35 @@ function downloadCheckpoint(payload) {
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// 恢复进度轮询
+let restorePollingTimer = null;
+
+function startRestoreStatusPolling() {
+  stopRestoreStatusPolling();
+  restorePollingTimer = setInterval(pollRestoreStatus, 500);
+}
+
+function stopRestoreStatusPolling() {
+  if (restorePollingTimer) {
+    clearInterval(restorePollingTimer);
+    restorePollingTimer = null;
+  }
+}
+
+async function pollRestoreStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'getRestoreStatus' });
+    const status = response?.restoreStatus;
+    if (!status) return;
+    if (status.phase === 'restoring') {
+      showStatus(`恢复中… 窗口 ${status.currentWindow}/${status.totalWindows}，标签 ${status.restoredTabs}/${status.totalTabs}`);
+    } else if (status.phase === 'done') {
+      showStatus(`恢复完成！共 ${status.totalWindows} 个窗口，${status.totalTabs} 个标签`);
+      stopRestoreStatusPolling();
+    }
+  } catch {
+    stopRestoreStatusPolling();
+  }
 }

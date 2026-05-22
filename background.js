@@ -154,6 +154,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'getRestoreStatus') {
+    sendResponse({ ok: true, restoreStatus: getRestoreStatus() });
+    return false;
+  }
+
   if (message.type === 'captureCheckpoint') {
     void createCheckpoint('manual')
       .then(async (checkpoint) => sendResponse({ ok: true, checkpoint, status: await getStatus() }))
@@ -789,44 +794,66 @@ async function restoreLatestState() {
   }
 }
 
+const RESTORE_BATCH_SIZE = 10; // 每批创建的标签数
+const RESTORE_BATCH_DELAY_MS = 500; // 每批之间的间隔
+
+// 恢复状态
+let restoreStatus = null; // { phase, totalWindows, currentWindow, totalTabs, restoredTabs, startedAt }
+
+function updateRestoreStatus(update) {
+  restoreStatus = restoreStatus ? { ...restoreStatus, ...update } : update;
+}
+
+function clearRestoreStatus() {
+  restoreStatus = null;
+}
+
+function getRestoreStatus() {
+  return restoreStatus ? { ...restoreStatus } : null;
+}
+
 async function materializeState(state) {
   if (!state || !Array.isArray(state.windows)) {
     throw new Error('Invalid recoverable state');
   }
 
+  const validWindows = state.windows.filter((win) => {
+    if (win.type === 'devtools') return false;
+    const tabs = (win.tabs || []).filter((t) => t?.pendingUrl || t?.url);
+    return tabs.length > 0;
+  });
+
+  const totalTabs = validWindows.reduce((sum, win) => {
+    return sum + (win.tabs || []).filter((t) => t?.pendingUrl || t?.url).length;
+  }, 0);
+
+  updateRestoreStatus({
+    phase: 'restoring',
+    totalWindows: validWindows.length,
+    currentWindow: 0,
+    totalTabs,
+    restoredTabs: 0,
+    startedAt: Date.now()
+  });
+
   const restoredWindowIds = [];
 
-  for (const win of state.windows) {
-    // 只跳过 devtools 窗口
-    if (win.type === 'devtools') {
-      console.log('[materializeState] Skipping devtools window:', win.id);
-      continue;
-    }
+  for (let winIdx = 0; winIdx < validWindows.length; winIdx += 1) {
+    const win = validWindows[winIdx];
+    const tabs = win.tabs
+      .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
+      .filter((tab) => tab.restoreUrl)
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
-    const tabs = Array.isArray(win?.tabs)
-      ? win.tabs
-          .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
-          .filter((tab) => tab.restoreUrl)
-          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-      : [];
-
-    if (!tabs.length) {
-      console.log('[materializeState] Skipping window with no valid tabs:', win.id, 'type:', win.type, 'original tabs:', win.tabs?.length);
-      continue;
-    }
-
-    console.log('[materializeState] Restoring window:', win.id, 'type:', win.type, 'tabs:', tabs.length);
+    updateRestoreStatus({ currentWindow: winIdx + 1 });
 
     try {
-      // 用 url 数组一次性创建窗口和所有标签
-      const urls = tabs.map((tab) => tab.restoreUrl);
-      const createData = {
-        url: urls,
-        focused: false
-      };
+      // 第一批：创建窗口 + 前 N 个标签
+      const firstBatch = tabs.slice(0, RESTORE_BATCH_SIZE);
+      const urls = firstBatch.map((tab) => tab.restoreUrl);
+      const createData = { url: urls, focused: false };
 
       if (win.incognito) createData.incognito = true;
-
       const left = nullableNumber(win.left);
       const top = nullableNumber(win.top);
       const width = nullableNumber(win.width);
@@ -842,25 +869,37 @@ async function materializeState(state) {
       // 设置窗口状态
       const normalizedState = normalizeWindowStateForCreate(win.state);
       if (normalizedState && normalizedState !== 'normal') {
-        await chrome.windows.update(createdWindow.id, { state: normalizedState });
+        await chrome.windows.update(createdWindow.id, { state: normalizedState }).catch(() => {});
       }
 
-      // 设置 pinned 和 active
-      const createdTabs = Array.isArray(createdWindow.tabs)
-        ? [...createdWindow.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-        : [];
+      updateRestoreStatus({ restoredTabs: (restoreStatus?.restoredTabs || 0) + firstBatch.length });
 
-      const updatePromises = [];
-      for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
-        const targetTab = tabs[i];
-        if (targetTab.pinned || targetTab.active) {
-          updatePromises.push(chrome.tabs.update(createdTabs[i].id, {
-            pinned: !!targetTab.pinned,
-            active: !!targetTab.active
-          }));
+      // 剩余标签分批创建
+      for (let i = RESTORE_BATCH_SIZE; i < tabs.length; i += RESTORE_BATCH_SIZE) {
+        await delay(RESTORE_BATCH_DELAY_MS);
+        const batch = tabs.slice(i, i + RESTORE_BATCH_SIZE);
+        const batchPromises = batch.map((tab) =>
+          chrome.tabs.create({
+            windowId: createdWindow.id,
+            url: tab.restoreUrl,
+            active: false,
+            pinned: !!tab.pinned
+          }).catch((e) => console.warn('[materializeState] tab create failed:', e))
+        );
+        await Promise.all(batchPromises);
+        updateRestoreStatus({ restoredTabs: (restoreStatus?.restoredTabs || 0) + batch.length });
+      }
+
+      // 设置第一批的 pinned 状态
+      const createdTabs = (createdWindow.tabs || []).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+      const pinPromises = [];
+      for (let i = 0; i < Math.min(createdTabs.length, firstBatch.length); i += 1) {
+        if (firstBatch[i].pinned) {
+          pinPromises.push(chrome.tabs.update(createdTabs[i].id, { pinned: true }).catch(() => {}));
         }
       }
-      if (updatePromises.length) await Promise.all(updatePromises);
+      if (pinPromises.length) await Promise.all(pinPromises);
+
     } catch (error) {
       console.warn('[materializeState] Failed to restore window:', error);
     }
@@ -871,7 +910,14 @@ async function materializeState(state) {
     await chrome.windows.update(restoredWindowIds[restoredWindowIds.length - 1], { focused: true }).catch(() => {});
   }
 
+  updateRestoreStatus({ phase: 'done' });
+  setTimeout(clearRestoreStatus, 10000); // 10秒后清除状态
+
   return restoredWindowIds;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function rebuildStateCacheFromBrowser() {

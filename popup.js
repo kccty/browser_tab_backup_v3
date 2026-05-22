@@ -78,10 +78,11 @@ function bindTopbarActions() {
   });
 
   restoreLatestBtn?.addEventListener('click', async () => {
-    await withButtonBusy(restoreLatestBtn, '⏳', async () => {
+    await withButtonBusy(restoreLatestBtn, '✘', async () => {
       const checkpointId = currentPreview?.checkpoint?.id || selectedCheckpointId;
       if (!checkpointId) throw new Error('当前没有可恢复的 checkpoint');
       showStatus('正在恢复当前 checkpoint…');
+      startRestoreStatusPolling();
       const result = await chrome.runtime.sendMessage({ type: 'restoreCheckpoint', checkpointId });
       if (!result?.ok) throw new Error(result?.error || '恢复 checkpoint 失败');
       selectedWindowId = null;
@@ -270,3 +271,40 @@ document.body.style.overflow = 'hidden';
 
 renderTopbar(null);
 loadPreview();
+
+// 恢复进度轮询
+let restorePollingTimer = null;
+
+function startRestoreStatusPolling() {
+  stopRestoreStatusPolling();
+  restorePollingTimer = setInterval(pollRestoreStatus, 500);
+}
+
+function stopRestoreStatusPolling() {
+  if (restorePollingTimer) {
+    clearInterval(restorePollingTimer);
+    restorePollingTimer = null;
+  }
+}
+
+async function pollRestoreStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'getRestoreStatus' });
+    const status = response?.restoreStatus;
+    if (!status) {
+      stopRestoreStatusPolling();
+      return;
+    }
+    if (status.phase === 'restoring') {
+      showStatus(`恢复中… 窗口 ${status.currentWindow}/${status.totalWindows}，标签 ${status.restoredTabs}/${status.totalTabs}`);
+    } else if (status.phase === 'done') {
+      showStatus(`恢复完成！共 ${status.totalWindows} 个窗口，${status.totalTabs} 个标签`);
+      stopRestoreStatusPolling();
+    }
+  } catch {
+    stopRestoreStatusPolling();
+  }
+}
+
+// 打开 popup 时检查是否有正在进行的恢复
+void pollRestoreStatus();
