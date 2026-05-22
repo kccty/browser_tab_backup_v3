@@ -352,9 +352,14 @@ button {
 
 .checkpoint-item-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+}
+
+.checkpoint-item-head > div:first-child {
+  min-width: 0;
+  flex: 1;
 }
 
 .checkpoint-item-title {
@@ -363,7 +368,6 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .checkpoint-item-time {
