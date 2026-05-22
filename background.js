@@ -797,8 +797,8 @@ async function materializeState(state) {
   const restoredWindowIds = [];
 
   for (const win of state.windows) {
-    // 跳过 PWA/app 窗口
-    if (win.type && win.type !== 'normal') continue;
+    // 只跳过 devtools 窗口
+    if (win.type === 'devtools') continue;
 
     const tabs = Array.isArray(win?.tabs)
       ? win.tabs
