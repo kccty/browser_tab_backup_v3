@@ -840,20 +840,18 @@ async function materializeState(state) {
         await chrome.windows.update(createdWindow.id, { state: normalizedState });
       }
 
-      // 创建其余标签（不加载，立即 discard）
+      // 创建其余标签（active: false，Edge 自动延迟加载非活动标签）
       for (let i = 0; i < tabs.length; i += 1) {
         if (i === firstActiveIdx) continue;
         const tab = tabs[i];
         try {
-          const created = await chrome.tabs.create({
+          await chrome.tabs.create({
             windowId: createdWindow.id,
             url: tab.restoreUrl,
             active: false,
             pinned: !!tab.pinned,
             index: i < firstActiveIdx ? i : i
           });
-          // 立即 discard 阻止加载
-          await chrome.tabs.discard(created.id).catch(() => {});
         } catch (e) {
           console.warn('[materializeState] tab create failed:', e);
         }
