@@ -380,9 +380,12 @@ button {
 }
 
 .checkpoint-item.active {
-  background: #f8fafc;
+  background: #f0f4ff;
   border-radius: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #c7d2fe;
+}
+.checkpoint-item.active .checkpoint-item-title {
+  font-weight: 700;
 }
 
 .events-panel {
