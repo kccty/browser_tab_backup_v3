@@ -798,7 +798,10 @@ async function materializeState(state) {
 
   for (const win of state.windows) {
     // 只跳过 devtools 窗口
-    if (win.type === 'devtools') continue;
+    if (win.type === 'devtools') {
+      console.log('[materializeState] Skipping devtools window:', win.id);
+      continue;
+    }
 
     const tabs = Array.isArray(win?.tabs)
       ? win.tabs
@@ -807,7 +810,12 @@ async function materializeState(state) {
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       : [];
 
-    if (!tabs.length) continue;
+    if (!tabs.length) {
+      console.log('[materializeState] Skipping window with no valid tabs:', win.id, 'type:', win.type, 'original tabs:', win.tabs?.length);
+      continue;
+    }
+
+    console.log('[materializeState] Restoring window:', win.id, 'type:', win.type, 'tabs:', tabs.length);
 
     try {
       // 用 url 数组一次性创建窗口和所有标签
