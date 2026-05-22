@@ -239,8 +239,6 @@ button {
 
 .checkpoint-select {
   cursor: pointer;
-  border-bottom: 2px solid var(--chip-active, #111);
-  padding-bottom: 1px;
 }
 
 .checkpoint-picker-wrap::after {
@@ -390,8 +388,8 @@ button {
   border-radius: 14px;
   border: 1px solid #e2e8f0;
 }
-.checkpoint-item.current {
-  border-left: 3px solid #2563eb;
+.checkpoint-item.current .checkpoint-item-title {
+  color: #2563eb;
 }
 
 .events-panel {
