@@ -796,8 +796,10 @@ async function materializeState(state) {
 
   const restoredWindowIds = [];
 
-  // 并行创建所有窗口
-  const windowPromises = state.windows.map(async (win, winIdx) => {
+  for (const win of state.windows) {
+    // 跳过 PWA/app 窗口
+    if (win.type && win.type !== 'normal') continue;
+
     const tabs = Array.isArray(win?.tabs)
       ? win.tabs
           .map((tab) => ({ ...tab, restoreUrl: tab?.pendingUrl || tab?.url || '' }))
@@ -805,19 +807,20 @@ async function materializeState(state) {
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       : [];
 
-    if (!tabs.length) return null;
+    if (!tabs.length) continue;
 
     try {
-      // 用 url 数组一次性创建所有标签
-      const urls = tabs.map((tab) => tab.restoreUrl);
+      // 找到 active 标签（或第一个）作为唯一加载的标签
+      const activeIdx = tabs.findIndex((t) => t.active);
+      const firstActiveIdx = activeIdx >= 0 ? activeIdx : 0;
+      const firstTab = tabs[firstActiveIdx];
+
       const createData = {
-        url: urls,
+        url: firstTab.restoreUrl,
         focused: false
       };
 
-      if (win.incognito) {
-        createData.incognito = true;
-      }
+      if (win.incognito) createData.incognito = true;
 
       const left = nullableNumber(win.left);
       const top = nullableNumber(win.top);
@@ -831,46 +834,47 @@ async function materializeState(state) {
       const createdWindow = await chrome.windows.create(createData);
       restoredWindowIds.push(createdWindow.id);
 
-      // 设置窗口状态（最大化等）
+      // 设置窗口状态
       const normalizedState = normalizeWindowStateForCreate(win.state);
       if (normalizedState && normalizedState !== 'normal') {
         await chrome.windows.update(createdWindow.id, { state: normalizedState });
       }
 
-      // 设置 pinned 和 active 状态
-      const createdTabs = Array.isArray(createdWindow.tabs)
-        ? [...createdWindow.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-        : [];
-
-      const updatePromises = [];
-      for (let i = 0; i < Math.min(createdTabs.length, tabs.length); i += 1) {
-        const targetTab = tabs[i];
-        if (targetTab.pinned || targetTab.active) {
-          updatePromises.push(chrome.tabs.update(createdTabs[i].id, {
-            pinned: !!targetTab.pinned,
-            active: !!targetTab.active
-          }));
+      // 创建其余标签（不加载，立即 discard）
+      for (let i = 0; i < tabs.length; i += 1) {
+        if (i === firstActiveIdx) continue;
+        const tab = tabs[i];
+        try {
+          const created = await chrome.tabs.create({
+            windowId: createdWindow.id,
+            url: tab.restoreUrl,
+            active: false,
+            pinned: !!tab.pinned,
+            index: i < firstActiveIdx ? i : i
+          });
+          // 立即 discard 阻止加载
+          await chrome.tabs.discard(created.id).catch(() => {});
+        } catch (e) {
+          console.warn('[materializeState] tab create failed:', e);
         }
       }
-      if (updatePromises.length) await Promise.all(updatePromises);
 
-      return createdWindow.id;
+      // 设置第一个标签的 pinned
+      const firstCreatedTab = createdWindow.tabs?.[0];
+      if (firstTab.pinned && firstCreatedTab) {
+        await chrome.tabs.update(firstCreatedTab.id, { pinned: true }).catch(() => {});
+      }
     } catch (error) {
       console.warn('[materializeState] Failed to restore window:', error);
-      return null;
     }
-  });
-
-  await Promise.all(windowPromises);
-
-  // 最后 focus 最后一个窗口（或原本 focused 的窗口）
-  const focusedWin = state.windows.find((w) => w.focused) || state.windows[state.windows.length - 1];
-  const focusedIdx = state.windows.indexOf(focusedWin);
-  if (restoredWindowIds[focusedIdx]) {
-    await chrome.windows.update(restoredWindowIds[focusedIdx], { focused: true }).catch(() => {});
   }
 
-  return restoredWindowIds.filter(Boolean);
+  // focus 最后一个窗口
+  if (restoredWindowIds.length) {
+    await chrome.windows.update(restoredWindowIds[restoredWindowIds.length - 1], { focused: true }).catch(() => {});
+  }
+
+  return restoredWindowIds;
 }
 
 async function rebuildStateCacheFromBrowser() {
