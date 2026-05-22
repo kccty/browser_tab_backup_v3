@@ -16,8 +16,24 @@ let bootstrapStatePromise = null;
 let restoreInProgress = false;
 let dbInstance = null;
 let isColdStart = false;
+let isReload = false;
 
-bootstrap().catch((error) => console.error('[bootstrap]', error));
+// onStartup 在浏览器冷启动时触发
+chrome.runtime.onStartup.addListener(() => {
+  isColdStart = true;
+});
+
+// onInstalled 在插件安装/更新/重新加载时触发
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install' || details.reason === 'update') {
+    isReload = true;
+  }
+});
+
+// 延迟启动，给 onStartup/onInstalled 时间触发
+setTimeout(() => {
+  bootstrap().catch((error) => console.error('[bootstrap]', error));
+}, 0);
 
 async function bootstrap() {
   if (lifecycleReady) return;
@@ -25,9 +41,10 @@ async function bootstrap() {
   bootstrapStatePromise = (async () => {
     await ensureDb();
     stateCache = await captureCurrentState();
-    if (isColdStart) {
-      await createCheckpointFromState(stateCache, 'restart');
+    if (isColdStart || isReload) {
+      await createCheckpointFromState(stateCache, isColdStart ? 'restart' : 'reload');
       isColdStart = false;
+      isReload = false;
     }
     await setMeta('bootAt', Date.now());
     lifecycleReady = true;
@@ -39,14 +56,6 @@ async function bootstrap() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  void bootstrap();
-});
-
-chrome.runtime.onStartup.addListener(() => {
-  isColdStart = true;
-  void bootstrap();
-});
 
 chrome.tabs.onCreated.addListener((tab) => {
   void onMutatingEvent('tab-created', { tab: normalizeTab(tab) }, { immediate: true });
