@@ -15,10 +15,13 @@
           <div class="topbar-subtitle" id="checkpointSummary">正在加载…</div>
         </div>
         <div class="topbar-actions">
+          <button id="importCheckpointsBtn" class="icon-btn flat" title="导入" aria-label="导入">⬇</button>
           <button id="refreshCheckpointsBtn" class="icon-btn flat" title="刷新" aria-label="刷新">↻</button>
         </div>
       </div>
     </section>
+
+    <input type="file" id="importFileInput" accept=".json" hidden />
 
     <section class="panel preview-panel page-panel checkpoints-panel">
       <div class="status-banner" id="checkpointsStatus">正在加载 checkpoint…</div>

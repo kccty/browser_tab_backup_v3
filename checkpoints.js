@@ -4,6 +4,8 @@ const statusEl = document.getElementById('checkpointsStatus');
 const listEl = document.getElementById('checkpointsList');
 const summaryEl = document.getElementById('checkpointSummary');
 const refreshBtn = document.getElementById('refreshCheckpointsBtn');
+const importBtn = document.getElementById('importCheckpointsBtn');
+const importFileInput = document.getElementById('importFileInput');
 
 let selectedCheckpointId = null;
 let currentCheckpoints = [];
@@ -27,6 +29,9 @@ function formatMeta(item) {
   return parts.map((line) => `<div class="checkpoint-meta-line">${ui.escapeHtml(line)}</div>`).join('');
 }
 
+let previewSelectedWindowId = null;
+let previewSelectedTabs = new Set();
+
 function renderPreviewWindows(preview) {
   const previewListEl = document.getElementById('previewSideList');
   const previewSubtitleEl = document.getElementById('previewSubtitle');
@@ -42,23 +47,144 @@ function renderPreviewWindows(preview) {
     return;
   }
 
-  previewListEl.innerHTML = windows.map((win, index) => {
-    const tabs = Array.isArray(win.tabs) ? win.tabs : [];
+  // 默认选中第一个窗口
+  if (!previewSelectedWindowId || !windows.find((w) => String(w.id) === previewSelectedWindowId)) {
+    previewSelectedWindowId = String(windows[0].id);
+  }
+  previewSelectedTabs.clear();
+
+  renderPreviewContent(windows);
+}
+
+function renderPreviewContent(windows) {
+  const previewListEl = document.getElementById('previewSideList');
+  if (!previewListEl) return;
+
+  const selectedWin = windows.find((w) => String(w.id) === previewSelectedWindowId) || windows[0];
+  const tabs = Array.isArray(selectedWin?.tabs) ? selectedWin.tabs : [];
+
+  // 窗口选择器
+  const windowSelector = `
+    <div class="preview-window-selector">
+      ${windows.map((win, index) => `
+        <button class="preview-win-btn ${String(win.id) === previewSelectedWindowId ? 'active' : ''}" data-preview-win-id="${ui.escapeHtml(String(win.id))}">
+          ${ui.escapeHtml(ui.getWindowLabel(win, index))} (${(win.tabs || []).length})
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+  // 批量操作栏
+  const toolbar = `
+    <div class="preview-toolbar">
+      <label class="preview-select-all-label">
+        <input type="checkbox" id="previewSelectAll" /> 全选
+      </label>
+      <button class="preview-batch-open-btn" id="previewBatchOpen" disabled>批量打开 (0)</button>
+      <button class="preview-restore-win-btn" id="previewRestoreWin">恢复此窗口</button>
+    </div>
+  `;
+
+  // 标签列表
+  const tabList = tabs.map((tab, i) => {
+    const url = tab.url || tab.pendingUrl || '';
+    const title = tab.title || url || '未命名标签页';
+    const checked = previewSelectedTabs.has(i) ? 'checked' : '';
     return `
-      <section class="preview-window-card">
-        <div class="preview-window-title">${ui.escapeHtml(ui.getWindowLabel(win, index))}</div>
-        <div class="preview-window-meta">${tabs.length} 个标签</div>
-        <div class="preview-window-tabs">
-          ${tabs.map((tab) => `
-            <div class="preview-side-tab">
-              <span class="preview-side-tab-title">${ui.escapeHtml(tab.title || tab.url || '未命名标签页')}</span>
-              <span class="preview-side-tab-url">${ui.escapeHtml(tab.url || '')}</span>
-            </div>
-          `).join('')}
-        </div>
-      </section>
+      <div class="preview-side-tab" data-tab-index="${i}">
+        <input type="checkbox" class="preview-tab-check" data-tab-idx="${i}" ${checked} />
+        <a class="preview-tab-link" href="${ui.escapeHtml(url)}" target="_blank" title="${ui.escapeHtml(url)}">
+          <span class="preview-side-tab-title">${ui.escapeHtml(title)}</span>
+        </a>
+      </div>
     `;
   }).join('');
+
+  previewListEl.innerHTML = windowSelector + toolbar + `<div class="preview-window-tabs">${tabList}</div>`;
+
+  // 绑定事件
+  bindPreviewEvents(windows, tabs);
+}
+
+function bindPreviewEvents(windows, tabs) {
+  const previewListEl = document.getElementById('previewSideList');
+  if (!previewListEl) return;
+
+  // 窗口切换
+  previewListEl.querySelectorAll('[data-preview-win-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      previewSelectedWindowId = btn.dataset.previewWinId;
+      previewSelectedTabs.clear();
+      renderPreviewContent(windows);
+    });
+  });
+
+  // 单个勾选
+  previewListEl.querySelectorAll('.preview-tab-check').forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      const idx = Number(checkbox.dataset.tabIdx);
+      if (checkbox.checked) {
+        previewSelectedTabs.add(idx);
+      } else {
+        previewSelectedTabs.delete(idx);
+      }
+      updateBatchButton();
+    });
+  });
+
+  // 全选
+  const selectAllEl = document.getElementById('previewSelectAll');
+  selectAllEl?.addEventListener('change', () => {
+    previewSelectedTabs.clear();
+    if (selectAllEl.checked) {
+      tabs.forEach((_, i) => previewSelectedTabs.add(i));
+    }
+    previewListEl.querySelectorAll('.preview-tab-check').forEach((cb) => {
+      cb.checked = selectAllEl.checked;
+    });
+    updateBatchButton();
+  });
+
+  // 批量打开
+  const batchBtn = document.getElementById('previewBatchOpen');
+  batchBtn?.addEventListener('click', () => {
+    const urls = [...previewSelectedTabs]
+      .sort((a, b) => a - b)
+      .map((i) => tabs[i]?.url || tabs[i]?.pendingUrl || '')
+      .filter(Boolean);
+    if (urls.length) {
+      urls.forEach((url) => chrome.tabs.create({ url, active: false }));
+    }
+  });
+
+  // 恢复当前窗口
+  const restoreWinBtn = document.getElementById('previewRestoreWin');
+  restoreWinBtn?.addEventListener('click', async () => {
+    const urls = tabs.map((tab) => tab.url || tab.pendingUrl || '').filter(Boolean);
+    if (!urls.length) return;
+    restoreWinBtn.disabled = true;
+    restoreWinBtn.textContent = '恢复中…';
+    try {
+      await chrome.windows.create({ url: urls, focused: true });
+      restoreWinBtn.textContent = '已恢复';
+    } catch (error) {
+      restoreWinBtn.textContent = '恢复失败';
+      console.warn('[restoreWindow]', error);
+    } finally {
+      setTimeout(() => {
+        restoreWinBtn.disabled = false;
+        restoreWinBtn.textContent = '恢复此窗口';
+      }, 2000);
+    }
+  });
+}
+
+function updateBatchButton() {
+  const batchBtn = document.getElementById('previewBatchOpen');
+  if (!batchBtn) return;
+  const count = previewSelectedTabs.size;
+  batchBtn.textContent = `批量打开 (${count})`;
+  batchBtn.disabled = count === 0;
 }
 
 function renderShell(items) {
@@ -330,7 +456,31 @@ async function loadCheckpoints(successMessage = '') {
 }
 
 refreshBtn.addEventListener('click', () => loadCheckpoints());
+importBtn?.addEventListener('click', () => importFileInput?.click());
+importFileInput?.addEventListener('change', handleImportFile);
 loadCheckpoints();
+
+async function handleImportFile(event) {
+  const [file] = event.target.files || [];
+  if (!file) return;
+  try {
+    showStatus('正在导入 checkpoint…');
+    const text = await file.text();
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error('导入文件不是有效的 JSON');
+    }
+    const result = await chrome.runtime.sendMessage({ type: 'importCheckpointFile', payload });
+    if (!result?.ok) throw new Error(result?.error || '导入失败');
+    await loadCheckpoints('checkpoint 已导入。');
+  } catch (error) {
+    showStatus(error?.message || String(error));
+  } finally {
+    importFileInput.value = '';
+  }
+}
 
 function downloadCheckpoint(payload) {
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
