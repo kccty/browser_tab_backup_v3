@@ -351,15 +351,7 @@ button {
 }
 
 .checkpoint-item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.checkpoint-item-head > div:first-child {
-  min-width: 0;
-  flex: 1;
+  display: block;
 }
 
 .checkpoint-item-title {
@@ -368,6 +360,12 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.checkpoint-item-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .checkpoint-item-time {

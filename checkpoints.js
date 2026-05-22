@@ -220,10 +220,10 @@ function renderShell(items) {
     return `
     <section class="${classes.join(' ')}" data-checkpoint-id="${ui.escapeHtml(item.id)}">
       <div class="checkpoint-item-head">
-        <div>
-          <div class="checkpoint-item-title">${ui.escapeHtml(item.id)}</div>
-          <div class="checkpoint-item-time">${ui.escapeHtml(ui.formatTime(item.createdAt, '—'))}</div>
-        </div>
+        <div class="checkpoint-item-title" title="${ui.escapeHtml(item.id)}">${ui.escapeHtml(item.id)}</div>
+        <div class="checkpoint-item-time">${ui.escapeHtml(ui.formatTime(item.createdAt, '—'))}</div>
+      </div>
+      <div class="checkpoint-item-actions">
         <button class="menu-item checkpoint-export-btn" type="button" data-export-id="${ui.escapeHtml(item.id)}">导出</button>
         <button class="menu-item checkpoint-restore-btn" type="button" data-restore-id="${ui.escapeHtml(item.id)}">恢复</button>
         <button class="menu-item danger checkpoint-delete-btn" type="button" data-delete-id="${ui.escapeHtml(item.id)}">删除</button>
