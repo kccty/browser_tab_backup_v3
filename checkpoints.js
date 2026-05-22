@@ -213,11 +213,10 @@ function renderShell(items) {
   `;
 
   const column = document.getElementById('checkpointListColumn');
-  const currentCheckpointId = items[0]?.id || null; // 最新的 = 当前活跃的
   column.innerHTML = items.map((item) => {
     const classes = ['checkpoint-item'];
     if (selectedCheckpointId === item.id) classes.push('active');
-    if (item.id === currentCheckpointId) classes.push('current');
+    if (item.id === activeCheckpointId) classes.push('current');
     return `
     <section class="${classes.join(' ')}" data-checkpoint-id="${ui.escapeHtml(item.id)}">
       <div class="checkpoint-item-head">
@@ -452,10 +451,13 @@ function renderList(items) {
   ]);
 }
 
+let activeCheckpointId = null;
+
 async function loadCheckpoints(successMessage = '') {
   showStatus(successMessage || '正在加载 checkpoint…');
   try {
     const response = await chrome.runtime.sendMessage({ type: 'listCheckpoints' });
+    activeCheckpointId = response?.activeCheckpointId || null;
     renderList(response?.checkpoints || []);
   } catch (error) {
     summaryEl.textContent = '读取失败';

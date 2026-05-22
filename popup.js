@@ -14,6 +14,7 @@ function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
   const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
   const effectiveCheckpointId = checkpoint?.id || selectedCheckpointId || checkpoints[0]?.id || '';
+  const activeId = preview?.activeCheckpointId || '';
   const subtitle = checkpoint
     ? `${checkpoint.windowCount ?? 0} 窗口，${checkpoint.tabCount ?? 0} 标签`
     : '还没有可用 checkpoint';
@@ -22,6 +23,7 @@ function renderTopbar(preview) {
     subtitle,
     checkpoints,
     currentCheckpointId: effectiveCheckpointId,
+    activeCheckpointId: activeId,
     showOpenPreview: false
   });
   bindTopbarActions();

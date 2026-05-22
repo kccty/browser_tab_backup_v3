@@ -46,19 +46,19 @@ function getSelectedWindows(windows, selectedWindowId) {
   return selected ? [selected] : [windows[0]];
 }
 
-function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '') {
+function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '', activeCheckpointId = '') {
   if (!Array.isArray(checkpoints) || !checkpoints.length) {
     return '<span class="checkpoint-picker-static">还没有可用 checkpoint</span>';
   }
   const normalizedCurrent = String(currentCheckpointId || checkpoints[0]?.id || '');
-  const latestId = String(checkpoints[0]?.id || '');
+  const normalizedActive = String(activeCheckpointId || '');
   return `
     <label class="checkpoint-picker-wrap">
       <select id="checkpointSelect" class="checkpoint-select" aria-label="选择 checkpoint">
         ${checkpoints.map((item) => {
-          const isLatest = String(item.id) === latestId;
-          const label = isLatest
-            ? `● ${escapeHtml(formatTime(item.createdAt, '未知时间'))} (当前)`
+          const isActive = String(item.id) === normalizedActive;
+          const label = isActive
+            ? `● ${escapeHtml(formatTime(item.createdAt, '未知时间'))} (活跃)`
             : escapeHtml(formatTime(item.createdAt, '未知时间'));
           return `<option value="${escapeHtml(item.id)}"${String(item.id) === normalizedCurrent ? ' selected' : ''}>${label}</option>`;
         }).join('')}
@@ -67,7 +67,7 @@ function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '') {
   `;
 }
 
-function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpointId = '', showOpenPreview = false, menuLabel = '更多' }) {
+function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpointId = '', activeCheckpointId = '', showOpenPreview = false, menuLabel = '更多' }) {
   return `
     <section class="topbar-card">
       <div class="topbar-row">
@@ -75,7 +75,7 @@ function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpoin
           <div class="topbar-title-row">
             <div class="topbar-title">${escapeHtml(title)}</div>
             <div class="topbar-inline-tools">
-              ${renderCheckpointPicker(checkpoints, currentCheckpointId)}
+              ${renderCheckpointPicker(checkpoints, currentCheckpointId, activeCheckpointId)}
             </div>
           </div>
           ${subtitle ? `<div class="topbar-subtitle">${escapeHtml(subtitle)}</div>` : ''}

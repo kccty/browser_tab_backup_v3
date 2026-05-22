@@ -176,7 +176,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'listCheckpoints') {
-    void listCheckpoints().then((checkpoints) => sendResponse({ checkpoints }));
+    void (async () => {
+      const checkpoints = await listCheckpoints();
+      const activeId = await getMeta('latestCheckpointId');
+      sendResponse({ checkpoints, activeCheckpointId: activeId || null });
+    })();
     return true;
   }
 
@@ -464,6 +468,7 @@ async function getLatestPreview() {
   const checkpoints = await listCheckpoints();
   const latest = checkpoints[0] || null;
   const previewState = await rebuildLatestState();
+  const activeId = await getMeta('latestCheckpointId');
 
   if (!latest?.id && !previewState?.windows?.length) {
     return buildPreviewPayload({ checkpoint: null, state: null, source: 'empty' });
@@ -475,7 +480,8 @@ async function getLatestPreview() {
       state: previewState,
       source: latest?.id ? 'latest-state' : 'event-log'
     }),
-    checkpoints
+    checkpoints,
+    activeCheckpointId: activeId || null
   };
 }
 
@@ -1380,4 +1386,12 @@ function setMeta(key, value) {
   return ensureDb().then((db) => withTransaction(db, [META_STORE], 'readwrite', async (tx) => {
     await idbPut(tx.objectStore(META_STORE), { key, value });
   }));
+}
+
+async function getMeta(key) {
+  const db = await ensureDb();
+  return withTransaction(db, [META_STORE], 'readonly', async (tx) => {
+    const record = await idbGet(tx.objectStore(META_STORE), key);
+    return record?.value ?? null;
+  });
 }
