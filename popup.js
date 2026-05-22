@@ -8,13 +8,14 @@ const importFileInput = document.getElementById('importFileInput');
 let currentPreview = null;
 let selectedWindowId = null;
 let selectedCheckpointId = null;
+let cachedActiveCheckpointId = null;
 let lastStatusText = '正在加载预览…';
 
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
   const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
   const effectiveCheckpointId = checkpoint?.id || selectedCheckpointId || checkpoints[0]?.id || '';
-  const activeId = preview?.activeCheckpointId || '';
+  if (preview?.activeCheckpointId) cachedActiveCheckpointId = preview.activeCheckpointId;
   const subtitle = checkpoint
     ? `${checkpoint.windowCount ?? 0} 窗口，${checkpoint.tabCount ?? 0} 标签`
     : '还没有可用 checkpoint';
@@ -23,7 +24,7 @@ function renderTopbar(preview) {
     subtitle,
     checkpoints,
     currentCheckpointId: effectiveCheckpointId,
-    activeCheckpointId: activeId,
+    activeCheckpointId: cachedActiveCheckpointId || '',
     showOpenPreview: false
   });
   bindTopbarActions();

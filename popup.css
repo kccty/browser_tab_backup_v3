@@ -228,7 +228,7 @@ button {
   background: transparent;
   color: var(--text);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: normal;
   line-height: 20px;
   padding: 0 16px 0 0;
   max-width: 200px;
