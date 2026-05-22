@@ -58,6 +58,7 @@ async function bootstrap() {
 
 
 chrome.tabs.onCreated.addListener((tab) => {
+  if (!shouldPersistTab(tab)) return;
   void onMutatingEvent('tab-created', { tab: normalizeTab(tab) }, { immediate: true });
 });
 
@@ -70,10 +71,9 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!shouldPersistTab(tab)) return;
   const hasCriticalChange = !!(changeInfo.url || changeInfo.title || 'pinned' in changeInfo);
-  if (!hasCriticalChange) {
-    return;
-  }
+  if (!hasCriticalChange) return;
   void onMutatingEvent('tab-updated', {
     tabId,
     changeInfo: {
