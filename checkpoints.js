@@ -42,6 +42,25 @@ function renderPreviewWindows(preview) {
   const tabCount = windows.reduce((sum, win) => sum + (Array.isArray(win.tabs) ? win.tabs.length : 0), 0);
   previewSubtitleEl.textContent = `${windowCount} 窗口，${tabCount} 标签`;
 
+  // 同步更新左侧列表的窗口/页签计数（用重放后的实时计数，而非快照）
+  const state = preview?.state;
+  if (selectedCheckpointId && state) {
+    const itemEl = document.querySelector(`[data-checkpoint-id="${CSS.escape(selectedCheckpointId)}"]`);
+    if (itemEl) {
+      const metaBlock = itemEl.querySelector('.checkpoint-meta-block');
+      if (metaBlock) {
+        const wc = state.windowCount ?? windowCount;
+        const tc = state.tabCount ?? tabCount;
+        metaBlock.innerHTML = [
+          `创建时间：${ui.formatTime(itemEl.dataset.checkpointTime || '', '—')}`,
+          `来源：${itemEl.dataset.checkpointReason || 'unknown'}`,
+          `窗口：${wc}`,
+          `页签：${tc}`
+        ].map((line) => `<div class="checkpoint-meta-line">${ui.escapeHtml(line)}</div>`).join('');
+      }
+    }
+  }
+
   if (!windows.length) {
     previewListEl.innerHTML = '<div class="event-empty">当前没有可显示的标签</div>';
     return;
@@ -218,7 +237,7 @@ function renderShell(items) {
     if (selectedCheckpointId === item.id) classes.push('active');
     if (item.id === activeCheckpointId) classes.push('current');
     return `
-    <section class="${classes.join(' ')}" data-checkpoint-id="${ui.escapeHtml(item.id)}">
+    <section class="${classes.join(' ')}" data-checkpoint-id="${ui.escapeHtml(item.id)}" data-checkpoint-time="${ui.escapeHtml(String(item.createdAt))}" data-checkpoint-reason="${ui.escapeHtml(item.reason || 'unknown')}">
       <div class="checkpoint-item-head">
         <div class="checkpoint-item-title" title="${ui.escapeHtml(item.id)}">${ui.escapeHtml(item.id)}</div>
         <div class="checkpoint-item-time">${ui.escapeHtml(ui.formatTime(item.createdAt, '—'))}</div>
@@ -240,11 +259,19 @@ function renderShell(items) {
 
 function bindCheckpointActions(items) {
   const column = document.getElementById('checkpointListColumn');
+
   column?.querySelectorAll('[data-checkpoint-id]').forEach((itemEl) => {
     itemEl.addEventListener('click', async (event) => {
       if (event.target.closest('[data-delete-id]') || event.target.closest('[data-export-id]') || event.target.closest('[data-restore-id]')) return;
-      selectedCheckpointId = itemEl.dataset.checkpointId || null;
-      renderShell(items);
+      const newId = itemEl.dataset.checkpointId || null;
+      if (newId === selectedCheckpointId) return;
+      selectedCheckpointId = newId;
+
+      // 只更新选中样式，不重建整个 shell（避免跳回顶部）
+      column.querySelectorAll('[data-checkpoint-id]').forEach((el) => {
+        el.classList.toggle('active', el.dataset.checkpointId === selectedCheckpointId);
+      });
+
       await Promise.all([
         loadEvents(selectedCheckpointId),
         loadPreview(selectedCheckpointId)
