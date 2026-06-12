@@ -11,7 +11,13 @@ let lastMessage = '';
 
 function renderTopbar(preview) {
   const checkpoint = preview?.checkpoint;
-  const subtitle = checkpoint ? previewUI.formatTime(checkpoint.createdAt, '未知时间') : '还没有可用 checkpoint';
+  const liveState = preview?.state;
+  const liveWindowCount = liveState?.windowCount ?? checkpoint?.windowCount ?? 0;
+  const liveTabCount = liveState?.tabCount ?? checkpoint?.tabCount ?? 0;
+  const timeStr = checkpoint ? previewUI.formatTime(checkpoint.createdAt, '未知时间') : '';
+  const subtitle = checkpoint
+    ? `${liveWindowCount} 窗口，${liveTabCount} 标签 · ${timeStr}`
+    : '还没有可用 checkpoint';
   topbarMount.innerHTML = previewUI.renderTopbar({
     title: '恢复预览',
     subtitle,
@@ -107,10 +113,10 @@ function renderPreview(preview, { successMessage = '' } = {}) {
 
   const selectedWindows = previewUI.getSelectedWindows(windows, selectedWindowId);
   if (!selectedWindowId && selectedWindows[0]) {
-    selectedWindowId = selectedWindows[0].id;
+    selectedWindowId = selectedWindows[0].win.id;
   }
 
-  panelEl.innerHTML = `${previewUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map((win, index) => previewUI.renderWindowCard(win, index)).join('')}`;
+  panelEl.innerHTML = `${previewUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(({ win, index }) => previewUI.renderWindowCard(win, index)).join('')}`;
   bindWindowSelector();
 
   if (successMessage) {

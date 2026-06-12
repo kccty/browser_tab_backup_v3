@@ -30,10 +30,11 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// 延迟启动，给 onStartup/onInstalled 时间触发
+// 延迟启动，给 onStartup/onInstalled 时间触发，也给 Edge session restore 足够时间恢复窗口
+const BOOTSTRAP_DELAY_MS = 3000;
 setTimeout(() => {
   bootstrap().catch((error) => console.error('[bootstrap]', error));
-}, 0);
+}, BOOTSTRAP_DELAY_MS);
 
 async function bootstrap() {
   if (lifecycleReady) return;
@@ -41,6 +42,16 @@ async function bootstrap() {
   bootstrapStatePromise = (async () => {
     await ensureDb();
     stateCache = await captureCurrentState();
+
+    // 如果 3 秒后仍抓到 0 窗口，再等 2 秒重试
+    if (stateCache.windowCount === 0) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const retryState = await captureCurrentState();
+      if (retryState.windowCount > 0) {
+        stateCache = retryState;
+      }
+    }
+
     if (isColdStart || isReload) {
       await createCheckpointFromState(stateCache, isColdStart ? 'restart' : 'reload');
       isColdStart = false;
@@ -74,6 +85,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!shouldPersistTab(tab)) return;
   const hasCriticalChange = !!(changeInfo.url || changeInfo.title || 'pinned' in changeInfo);
   if (!hasCriticalChange) return;
+
+  // 跳过标题变成加载占位符的过渡事件（"请稍后…"、"Just a moment…" 等）
+  // 这些是页面加载中间态，不应该作为有效增量
+  if (!changeInfo.url && !('pinned' in changeInfo) && changeInfo.title && isPlaceholderTitle(changeInfo.title)) {
+    return;
+  }
+
   void onMutatingEvent('tab-updated', {
     tabId,
     changeInfo: {
@@ -310,6 +328,8 @@ async function flushEvents() {
 
 async function persistEvents(events) {
   const db = await ensureDb();
+  let archiveNeeded = false;
+
   await withTransaction(db, [EVENT_STORE, META_STORE], 'readwrite', async (tx) => {
     const eventStore = tx.objectStore(EVENT_STORE);
     const metaStore = tx.objectStore(META_STORE);
@@ -317,18 +337,23 @@ async function persistEvents(events) {
     puts.push(idbPut(metaStore, { key: 'lastEventAt', value: events[events.length - 1].createdAt }));
     await Promise.all(puts);
 
-    // 达到上限 → 归档为新 checkpoint + 清空事件
+    // 达到上限 → 标记需要归档（等事务提交后再执行，避免嵌套事务）
     const allEvents = await idbGetAll(eventStore);
     if (allEvents.length >= MAX_EVENTS) {
-      await archiveAndReset(db);
+      archiveNeeded = true;
     }
   });
+
+  // 在事务提交后再执行归档
+  if (archiveNeeded) {
+    await archiveAndReset(db);
+  }
 }
 
 /**
  * 事件达到上限时：保存当前状态为 checkpoint，清空所有事件
  */
-async function archiveAndReset() {
+async function archiveAndReset(db) {
   const freshState = await captureCurrentState();
   stateCache = freshState;
 
@@ -339,7 +364,7 @@ async function archiveAndReset() {
     state: finalizeState(cloneState(freshState))
   };
 
-  const db = await ensureDb();
+  // 使用传入的 db，不重复 ensureDb()
   await withTransaction(db, [CHECKPOINT_STORE, EVENT_STORE, META_STORE], 'readwrite', async (tx) => {
     const checkpointStore = tx.objectStore(CHECKPOINT_STORE);
     const eventStore = tx.objectStore(EVENT_STORE);
@@ -968,9 +993,21 @@ async function rebuildLatestState() {
   const checkpoints = await withTransaction(db, [CHECKPOINT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(CHECKPOINT_STORE)));
   checkpoints.sort((a, b) => b.createdAt - a.createdAt);
   const latestCheckpoint = checkpoints[0] || null;
+
+  // 没有 checkpoint 但有事件 → 从事件重建
   if (!latestCheckpoint) {
-    return null;
+    const events = await withTransaction(db, [EVENT_STORE], 'readonly', async (tx) => idbGetAll(tx.objectStore(EVENT_STORE)));
+    if (!events.length) return stateCache ? cloneState(stateCache) : null;
+    const state = makeEmptyState();
+    const sortedEvents = events.slice().sort((a, b) => Number(a?.createdAt || 0) - Number(b?.createdAt || 0));
+    for (const event of sortedEvents) {
+      applyEventToState(state, event);
+    }
+    state.capturedAt = Date.now();
+    refreshCounts(state);
+    return finalizeState(state);
   }
+
   return rebuildStateForCheckpoint(latestCheckpoint.id, checkpoints);
 }
 
@@ -1038,7 +1075,12 @@ function applyEventToState(state, event) {
     }
     case 'tab-updated': {
       const tab = event.payload?.tab;
-      if (!tab || !shouldPersistTab(tab)) break;
+      if (!tab) break;
+      // 如果已有该 tab 且新标题是加载占位符，保留旧标题
+      const existingTab = findTabInState(state, tab.id);
+      if (existingTab && isPlaceholderTitle(tab.title)) {
+        tab.title = existingTab.title;
+      }
       const win = ensureWindow(state, tab.windowId);
       upsertTab(win, tab);
       break;
@@ -1232,6 +1274,29 @@ function shouldPersistTab(tab) {
   return !url.startsWith('chrome://') && !url.startsWith('edge://') && !url.startsWith('devtools://') && !url.startsWith('chrome-extension://') && !url.startsWith('extension://');
 }
 
+// 加载占位标题：页面还没加载完时的过渡状态，不应作为有效事件
+function isPlaceholderTitle(title) {
+  if (!title || typeof title !== 'string') return true;
+  const t = title.trim().toLowerCase();
+  if (!t) return true;
+  if (t === 'just a moment...' || t === 'just moment' || t === 'just a moment') return true;
+  if (t.includes('请稍后') || t.includes('請稍後')) return true;
+  if (t === 'loading…' || t === 'loading' || t === 'loading...') return true;
+  if (t.includes('加载中') || t.includes('載入中')) return true;
+  // 标题为 URL 裸地址（页面还没设置标题）
+  if (t.startsWith('http://') || t.startsWith('https://')) return true;
+  return false;
+}
+
+function findTabInState(state, tabId) {
+  if (!state?.windows) return null;
+  for (const win of state.windows) {
+    const tab = (win.tabs || []).find((t) => t.id === tabId);
+    if (tab) return tab;
+  }
+  return null;
+}
+
 function normalizeTab(tab) {
   if (!tab) return null;
   return {
@@ -1331,6 +1396,7 @@ async function withTransaction(db, storeNames, mode, fn) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeNames, mode);
     let settled = false;
+    let fnResult;
 
     const done = (method, value) => {
       if (!settled) {
@@ -1339,13 +1405,15 @@ async function withTransaction(db, storeNames, mode, fn) {
       }
     };
 
+    // 必须在 fn 执行前注册事务事件处理器
+    // 否则事务可能在 .then() 链执行前就已提交，handler 永不触发 → Promise 永久挂起
+    tx.oncomplete = () => done(resolve, fnResult);
+    tx.onerror = () => done(reject, tx.error || new Error('Transaction error'));
+    tx.onabort = () => done(reject, tx.error || new Error('Transaction aborted'));
+
     Promise.resolve()
       .then(() => fn(tx))
-      .then((value) => {
-        tx.oncomplete = () => done(resolve, value);
-        tx.onerror = () => done(reject, tx.error);
-        tx.onabort = () => done(reject, tx.error || new Error('Transaction aborted'));
-      })
+      .then((value) => { fnResult = value; })
       .catch((error) => done(reject, error));
   });
 }

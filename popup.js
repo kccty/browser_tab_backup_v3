@@ -16,8 +16,12 @@ function renderTopbar(preview) {
   const checkpoints = Array.isArray(preview?.checkpoints) ? preview.checkpoints : [];
   const effectiveCheckpointId = checkpoint?.id || selectedCheckpointId || checkpoints[0]?.id || '';
   if (preview?.activeCheckpointId) cachedActiveCheckpointId = preview.activeCheckpointId;
+  // 优先用 rebuilt state（快照 + 事件重放后的实时状态）的计数
+  const liveState = preview?.state;
+  const liveWindowCount = liveState?.windowCount ?? checkpoint?.windowCount ?? 0;
+  const liveTabCount = liveState?.tabCount ?? checkpoint?.tabCount ?? 0;
   const subtitle = checkpoint
-    ? `${checkpoint.windowCount ?? 0} 窗口，${checkpoint.tabCount ?? 0} 标签`
+    ? `${liveWindowCount} 窗口，${liveTabCount} 标签`
     : '还没有可用 checkpoint';
   topbarMount.innerHTML = popupUI.renderTopbar({
     title: '历史记录',
@@ -161,10 +165,10 @@ function renderPreview(preview, { successMessage = '' } = {}) {
 
   const selectedWindows = popupUI.getSelectedWindows(windows, selectedWindowId);
   if (!selectedWindowId && selectedWindows[0]) {
-    selectedWindowId = selectedWindows[0].id;
+    selectedWindowId = selectedWindows[0].win.id;
   }
 
-  previewListEl.innerHTML = `${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map((win, index) => popupUI.renderWindowCard(win, index)).join('')}`;
+  previewListEl.innerHTML = `${popupUI.renderWindowSelector(windows, selectedWindowId)}${selectedWindows.map(({ win, index }) => popupUI.renderWindowCard(win, index)).join('')}`;
   previewListEl.classList.remove('hidden');
   bindWindowSelector();
   bindFaviconFallbacks();

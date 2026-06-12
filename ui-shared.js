@@ -35,15 +35,21 @@ function renderMeta(tab) {
   return time ? `<div class="tab-meta">${escapeHtml(time)}</div>` : '';
 }
 
-function getWindowLabel(_win, index) {
-  return `窗口${index + 1}`;
+function getWindowLabel(win, index) {
+  // 窗口类型前缀 + 全局编号，区分不同窗口
+  const num = index + 1;
+  const type = win?.type || '';
+  if (type === 'popup') return `弹出窗口 ${num}`;
+  if (type === 'app') return `应用窗口 ${num}`;
+  return `窗口 ${num}`;
 }
 
 function getSelectedWindows(windows, selectedWindowId) {
   if (!Array.isArray(windows) || !windows.length) return [];
-  if (!selectedWindowId) return [windows[0]];
-  const selected = windows.find((win) => String(win.id) === String(selectedWindowId));
-  return selected ? [selected] : [windows[0]];
+  if (!selectedWindowId) return [{ win: windows[0], index: 0 }];
+  const idx = windows.findIndex((win) => String(win.id) === String(selectedWindowId));
+  if (idx >= 0) return [{ win: windows[idx], index: idx }];
+  return [{ win: windows[0], index: 0 }];
 }
 
 function renderCheckpointPicker(checkpoints = [], currentCheckpointId = '', activeCheckpointId = '') {
@@ -121,14 +127,14 @@ function renderTopbar({ title, subtitle = '', checkpoints = [], currentCheckpoin
 
 function renderWindowSelector(windows, selectedWindowId) {
   if (!Array.isArray(windows) || !windows.length) return '';
-  const selected = selectedWindowId ?? windows[0].id;
+  const selected = selectedWindowId ?? String(windows[0]?.id ?? '');
   return `
     <div class="window-switcher" role="tablist" aria-label="窗口选择">
       ${windows.map((win, index) => `
         <button
           type="button"
-          class="window-pill${String(win.id) === String(selected) ? ' active' : ''}"
-          data-window-id="${escapeHtml(win.id)}"
+          class="window-pill${String(win.id) === selected ? ' active' : ''}"
+          data-window-id="${escapeHtml(String(win.id))}"
         >
           ${escapeHtml(getWindowLabel(win, index))}
         </button>
@@ -139,8 +145,9 @@ function renderWindowSelector(windows, selectedWindowId) {
 
 function renderWindowCard(win, index) {
   const tabs = Array.isArray(win.tabs) ? [...win.tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)) : [];
+  const label = getWindowLabel(win, index);
   return `
-    <section class="window-card" aria-label="窗口${index + 1}">
+    <section class="window-card" aria-label="${escapeHtml(label)}">
       <div class="tabs-wrap">
         ${tabs.map((tab) => {
           const tabUrl = escapeHtml(tab.url || tab.pendingUrl || '');
