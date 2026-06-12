@@ -519,12 +519,9 @@ async function getCheckpointPreview(checkpointId) {
     throw new Error('checkpoint 不存在');
   }
 
-  const full = await getCheckpointById(target.id);
-  if (!full?.state) {
-    throw new Error('checkpoint 数据不完整');
-  }
+  // 快照 + 事件重放，而非仅原始快照
+  const state = await rebuildStateForCheckpoint(target.id, checkpoints);
 
-  const state = finalizeState(cloneState(full.state));
   return {
     ...buildPreviewPayload({
       checkpoint: target,
