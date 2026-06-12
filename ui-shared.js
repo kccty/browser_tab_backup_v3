@@ -9,8 +9,10 @@ function escapeHtml(value) {
 }
 
 function formatTime(value, fallback = '—') {
-  if (!value) return fallback;
-  const date = new Date(value);
+  if (!value && value !== 0) return fallback;
+  // dataset 返回的永远是字符串，毫秒时间戳字符串不能当 ISO 8601 解析
+  const num = typeof value === 'string' ? Number(value) : value;
+  const date = new Date(num);
   if (Number.isNaN(date.getTime())) return fallback;
   return date.toLocaleString();
 }
