@@ -32,6 +32,22 @@ function formatMeta(item) {
 let previewSelectedWindowId = null;
 let previewSelectedTabs = new Set();
 
+function updateCheckpointMeta(checkpointId, state, windowCount, tabCount) {
+  if (!checkpointId) return;
+  const itemEl = document.querySelector(`[data-checkpoint-id="${CSS.escape(checkpointId)}"]`);
+  if (!itemEl) return;
+  const metaBlock = itemEl.querySelector('.checkpoint-meta-block');
+  if (!metaBlock) return;
+  const wc = state?.windowCount ?? windowCount ?? 0;
+  const tc = state?.tabCount ?? tabCount ?? 0;
+  metaBlock.innerHTML = [
+    `创建时间：${ui.formatTime(itemEl.dataset.checkpointTime || '', '—')}`,
+    `来源：${itemEl.dataset.checkpointReason || 'unknown'}`,
+    `窗口：${wc}`,
+    `页签：${tc}`
+  ].map((line) => `<div class="checkpoint-meta-line">${ui.escapeHtml(line)}</div>`).join('');
+}
+
 function renderPreviewWindows(preview) {
   const previewListEl = document.getElementById('previewSideList');
   const previewSubtitleEl = document.getElementById('previewSubtitle');
@@ -42,24 +58,8 @@ function renderPreviewWindows(preview) {
   const tabCount = windows.reduce((sum, win) => sum + (Array.isArray(win.tabs) ? win.tabs.length : 0), 0);
   previewSubtitleEl.textContent = `${windowCount} 窗口，${tabCount} 标签`;
 
-  // 同步更新左侧列表的窗口/页签计数（用重放后的实时计数，而非快照）
-  const state = preview?.state;
-  if (selectedCheckpointId && state) {
-    const itemEl = document.querySelector(`[data-checkpoint-id="${CSS.escape(selectedCheckpointId)}"]`);
-    if (itemEl) {
-      const metaBlock = itemEl.querySelector('.checkpoint-meta-block');
-      if (metaBlock) {
-        const wc = state.windowCount ?? windowCount;
-        const tc = state.tabCount ?? tabCount;
-        metaBlock.innerHTML = [
-          `创建时间：${ui.formatTime(itemEl.dataset.checkpointTime || '', '—')}`,
-          `来源：${itemEl.dataset.checkpointReason || 'unknown'}`,
-          `窗口：${wc}`,
-          `页签：${tc}`
-        ].map((line) => `<div class="checkpoint-meta-line">${ui.escapeHtml(line)}</div>`).join('');
-      }
-    }
-  }
+  // 同步更新选中 checkpoint 的左侧计数
+  updateCheckpointMeta(selectedCheckpointId, preview?.state, windowCount, tabCount);
 
   if (!windows.length) {
     previewListEl.innerHTML = '<div class="event-empty">当前没有可显示的标签</div>';
@@ -472,6 +472,25 @@ function renderList(items) {
   }
 
   renderShell(items);
+
+  // 为全部 checkpoint 拉预览更新左侧计数（后台并行，不阻塞 UI）
+  void (async () => {
+    const results = await Promise.allSettled(
+      items.map((item) =>
+        chrome.runtime.sendMessage({ type: 'getCheckpointPreview', checkpointId: item.id })
+      )
+    );
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        const preview = result.value?.preview || result.value;
+        const windows = Array.isArray(preview?.windows) ? preview.windows : [];
+        const wc = windows.length;
+        const tc = windows.reduce((sum, win) => sum + (Array.isArray(win.tabs) ? win.tabs.length : 0), 0);
+        updateCheckpointMeta(items[i].id, preview?.state, wc, tc);
+      }
+    });
+  })();
+
   void Promise.all([
     loadEvents(selectedCheckpointId),
     loadPreview(selectedCheckpointId)
